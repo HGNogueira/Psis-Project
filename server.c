@@ -50,7 +50,7 @@ void *c_interact(void *thread_scl){
 		}
 		else if(err == 0){ //client disconnected
 			printf("Client disconnected from this server\n");
-			gw_msg.type = 3; //decrementar numero de clientes
+			gw_msg.type = 2; //decrementar numero de clientes
 			gw_msg.ID = ID;
 			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
 				perror("GW contact");
@@ -153,10 +153,6 @@ int main(){
 	thread_head = thread_list;
 	while(run){
 		if( (thread_list->scl = accept(s, (struct sockaddr *) &clt_addr, &clt_addr_len)) != -1){
-			gw_msg.type = 2; //incremento no número de clientes
-			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
-				perror("GW contact");
-			}
 			if( pthread_create(&(thread_list->thread_id) , NULL, c_interact, &(thread_list->scl)) != 0)
 				printf("Error creating a new thread\n");
 
