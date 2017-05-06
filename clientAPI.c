@@ -34,7 +34,7 @@ int gallery_connect(char *host, in_port_t port){
 	gw_addr.sin_port = port;
 	inet_aton(host, &gw_addr.sin_addr);
 	
-	if( (s=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
+	if( (s_gw=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
 		perror("socket error");
 		exit(EXIT_FAILURE);
 	}
@@ -45,7 +45,7 @@ int gallery_connect(char *host, in_port_t port){
         return -1;
 	}
 	/****** GATEWAY CONTACT ESTABLISHED *****/
-    
+
     size_addr = sizeof(struct sockaddr_in);
 	recvfrom(s_gw, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &gw_addr, &size_addr);
 	if(gw_msg.type == 0){
@@ -66,5 +66,5 @@ int gallery_connect(char *host, in_port_t port){
 		exit(EXIT_FAILURE);
 	}
     
-    return scl;
+    return s;
 }
