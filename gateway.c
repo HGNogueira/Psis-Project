@@ -123,7 +123,7 @@ int main(){
 		perror("bind error");
 		exit(EXIT_FAILURE);
 	}
-    if( pthread_create(&peer_side, NULL, c_interact, NULL ) != 0){
+    if( pthread_create(&client_side, NULL, c_interact, NULL ) != 0){
 				printf("Error creating a new thread\n");
                 exit(EXIT_FAILURE);
     }
