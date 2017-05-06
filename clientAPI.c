@@ -1,6 +1,7 @@
 /* Header Inclusions                                              */
 #include<stdio.h>
 #include<stdlib.h>
+#include<arpa/inet.h>
 #include "clientAPI.h" /* include header with function prototypes */
 #include "messages.h"  /* message description headers */
 
