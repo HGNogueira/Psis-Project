@@ -6,6 +6,9 @@
 #include <arpa/inet.h>
 #include "messages.h"
 
+#define GATE_PORT 3000
+#define GATE_ADDR "127.0.0.1"
+
 int main(){
     int s;
 	char scanned[MESSAGE_LEN];
@@ -17,20 +20,8 @@ int main(){
 	message smsg;
 		
 	/****** CONTACT GATEWAY ******/
-
-	if( (f = fopen("./ifconfig.txt", "r"))== NULL){
-		perror("fopen");
-		exit(EXIT_FAILURE);
-	}
-	fgets(fread_buff, 50, f);//lê porto
-	sscanf(fread_buff, "%d", &port);
-	printf("Gateway port: %d\n", port);
-	fgets(fread_buff, 50, f);//lê endereço
-	printf("Gateway address: %s\n", fread_buff);
-	fclose(f);
-
-    port_s = htons(port);
-    s = gallery_connect(fread_buff, port_s);
+    port_s = htons(GATE_PORT);
+    s = gallery_connect(GATE_ADDR, port_s);
     if( s <= 0){
         exit(0);
     }
@@ -39,7 +30,21 @@ int main(){
 		fgets(scanned, MESSAGE_LEN, stdin);
 		strcpy(smsg.buffer, scanned);
 		send(s, (void *) &smsg, sizeof(message), 0);
-		recv(s, &rmsg, sizeof(rmsg), 0);
+        if( (err = recv(s, &rmsg, sizeof(message), 0)) == -1){
+			perror("recv error");
+			pthread_exit(NULL);
+		}
+		else if(err == 0){ //server disconnected
+			printf("Server stopped responding\n");
+			gw_msg.type = 1; //comunicate server stopped responding to gateway
+            
+			gw_msg.ID = ID;
+			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
+				perror("GW contact");
+			}
+			close(scl);
+			return(NULL);
+		}
 		printf("sent %s --- received %s\n", smsg.buffer, rmsg.buffer);
 	}
 }
