@@ -30,6 +30,36 @@ void sigint_handler(int n){
     exit(EXIT_SUCCESS);
 }
 
+/* attempt to connect to server and confirm if it is dead */
+int check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key){
+    struct sockaddr_in srv_addr;
+    int s, sgw;
+
+    if(  (s = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
+		perror("socket");
+		exit(EXIT_FAILURE);
+	}
+
+	srv_addr.sin_family = AF_INET;
+	srv_addr.sin_port = htons(gw_msg->port);
+	inet_aton(gw_msg->address, &srv_addr.sin_addr);
+
+	if( (sgw = connect(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in))) == -1){
+		perror("connect");
+		exit(EXIT_FAILURE);
+	}
+    if(sgw != 0){
+        printf("Server with address:%s and port %d stopped working\n", gw_msg->address, gw_msg->port);
+    }
+    else{
+        // talk to server and say it was just a test
+        close(sgw);
+    }
+
+    close(s); 
+    return 0;
+}
+
 /* thread that interacts with client requests, receives socket descriptor */
 void *c_interact(void *list_key){
     socklen_t addr_len;
@@ -43,13 +73,15 @@ void *c_interact(void *list_key){
 		if(gw_msg.type == 0){ //contacted by client
 			printf("Contacted by new client\n");
 			if( (tmp_node = pick_server(servers, list_key)) != NULL){
-				printf("Server available with port %d\n", tmp_node->port);
 				gw_msg.type = 1; //notify server is available
 				strcpy(gw_msg.address, tmp_node->address);
 				gw_msg.port = tmp_node->port;
+
                 pthread_mutex_lock(list_key);
+				printf("Server available with port %d\n", tmp_node->port);
 				tmp_node->nclients = tmp_node->nclients + 1;
                 pthread_mutex_unlock(list_key);
+
 				sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
 			}
 			else{
@@ -58,8 +90,9 @@ void *c_interact(void *list_key){
 				sendto(sc, NULL, 0, 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
 			}
 
-		} 
-        else{
+		} else if(gw_msg.type == -1){ //server connection lost
+                check_and_update_peer(&gw_msg, list_key);
+        } else{
             printf("Received message from client with non-defined type %d\n", gw_msg.type);
         }
 	}
@@ -89,8 +122,9 @@ void *p_interact(void *list_key){
 				tmp_node->nclients = tmp_node->nclients - 1;
                 pthread_mutex_unlock(list_key);
 			printf("Updated information from server\n");
-		}
-        else{
+		} else if(gw_msg.type == -1){ //server connection lost
+                check_and_update_peer(&gw_msg, list_key);
+        } else{
             printf("Received message from peer with non-defined type %d\n", gw_msg.type);
         }
 	}
