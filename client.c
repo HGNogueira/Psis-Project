@@ -14,11 +14,13 @@
 #define GATE_ADDR "127.0.0.1"
 
 int main(){
-    int s, err;
+    int s, err, s_gw;
 	char scanned[MESSAGE_LEN];
 	FILE *f;
-	char fread_buff[50];
     int  port;
+    socklen_t addrlen;
+    struct sockaddr_in peer_addr, gw_addr;
+    char address[50];
     in_port_t port_s;
     message_gw gw_msg;
 	message rmsg;
@@ -27,28 +29,31 @@ int main(){
 	/****** CONTACT GATEWAY ******/
     port_s = htons(GATE_PORT);
     s = gallery_connect(GATE_ADDR, port_s);
-    if( s <= 0){
+    if( s == 0){
+        printf("No server available\n");
         exit(0);
     }
+    if( s == -1){
+        printf("Gateway can not be accessed\n");
+        exit(0);
+    }
+
+
 	
 	while(1){  /* interaction */
 		fgets(scanned, MESSAGE_LEN, stdin);
 		strcpy(smsg.buffer, scanned);
-		send(s, (void *) &smsg, sizeof(message), 0);
+		if( send(s, (void *) &smsg, sizeof(message), 0) == -1){
+            perror("send");
+            exit(EXIT_FAILURE);
+        }
         if( (err = recv(s, &rmsg, sizeof(message), 0)) == -1){
 			perror("recv error");
-			pthread_exit(NULL);
+			exit(EXIT_FAILURE);
 		}
 		else if(err == 0){ //server disconnected
-            //let gateway know that server stopped responding
-            /* use function getsockname()
-			gw_msg.type = 1; //comunicate server stopped responding to gateway
-			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
-				perror("GW contact");
-			}
-            */
-
-			printf("Server stopped responding\n");
+            update_peer_loss();
+            printf("Server stopped responding\n");
 			close(s);
             exit(EXIT_FAILURE);
 		}
