@@ -13,6 +13,23 @@
 
 #include <netinet/in.h>  /* definition of in_port_t data type */
 
+/*
+ *  Function:
+ *    update_peer_loss();
+ *
+ *  Description:
+ *    contacts gateway communcating that peer stopped answering
+ *
+ *  Arguments:
+ *      void
+ *
+ *  Return value:
+ *      void
+ *    
+ */
+void update_peer_loss();
+ 
+
 
 /*
  *  Function:
