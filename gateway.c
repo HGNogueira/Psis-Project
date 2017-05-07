@@ -44,18 +44,14 @@ int check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key){
 	srv_addr.sin_port = htons(gw_msg->port);
 	inet_aton(gw_msg->address, &srv_addr.sin_addr);
 
-	if( (sgw = connect(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in))) == -1){
-		perror("connect");
-		exit(EXIT_FAILURE);
-	}
-    if(sgw != 0){
-        printf("Server with address:%s and port %d stopped working\n", gw_msg->address, gw_msg->port);
-    }
-    else{
-        // talk to server and say it was just a test
+	if( (sgw = connect(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in))) == 0){
+		printf("Server is still alive\n");
         close(sgw);
-    }
-
+        close(s);
+        return 0;
+	}
+    printf("Server with address:%s and port %d stopped working\n", gw_msg->address, gw_msg->port);
+    close(sgw);
     close(s); 
     return 0;
 }
@@ -113,15 +109,14 @@ void *p_interact(void *list_key){
 			sendto(sp, &ID, sizeof(ID), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back ID information
 			ID++;
 			printf("New server available - addr=%s, port =%d\n", servers->address, servers->port);
-		}
-		else if(gw_msg.type == 2){   //server lost 1 connection
+		} else if(gw_msg.type == 2){   //server lost 1 connection
 			if(!(tmp_node = search_server(servers, gw_msg.ID, list_key)))
 				printf("Can't find server in list\n");
 			else
                 pthread_mutex_lock(list_key);
 				tmp_node->nclients = tmp_node->nclients - 1;
                 pthread_mutex_unlock(list_key);
-			printf("Updated information from server\n");
+                printf("Updated information from server\n");
 		} else if(gw_msg.type == -1){ //server connection lost
                 check_and_update_peer(&gw_msg, list_key);
         } else{
