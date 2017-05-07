@@ -55,8 +55,10 @@ serverlist *search_server(serverlist *servers, int ID, pthread_mutex_t *list_key
 	if(s == NULL)
 		return NULL;
 	while(s != NULL){
-		if(s->ID == ID)
+		if(s->ID == ID){
+            pthread_mutex_unlock(list_key);
 			return s;
+        }
 		s = s->next;
 	}
     pthread_mutex_unlock(list_key);
