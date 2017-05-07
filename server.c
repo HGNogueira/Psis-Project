@@ -62,7 +62,9 @@ void *c_interact(void *thread_scl){
 		strcpy( smsg.buffer, rmsg.buffer);
 		convert_toupper(smsg.buffer);
 		printf("Turned %s into %s\n", rmsg.buffer, smsg.buffer);
-		send(scl, &smsg, sizeof(smsg), 0);
+		if( (err = send(scl, &smsg, sizeof(smsg), 0)) == -1){
+                perror("send error");
+        }
 	}
 }
 
