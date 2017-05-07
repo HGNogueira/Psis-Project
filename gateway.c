@@ -31,11 +31,14 @@ void sigint_handler(int n){
 }
 
 /* thread that interacts with client requests, receives socket descriptor */
-void *c_interact(void *dummy){
+void *c_interact(void *list_key_void){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
     message_gw gw_msg;
+    pthread_mutex_t list_key;
+
+    list_key = (pthread_mutex_t) *list_key_void;  //cast mutex
 
     while(1){
 		addr_len = sizeof(rmt_addr);
@@ -64,11 +67,14 @@ void *c_interact(void *dummy){
 }
 
 /* thread that interacts with peer requests, receives socket descriptor */
-void *p_interact(void *dummy){
+void *p_interact(void *list_key_void){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
     message_gw gw_msg;
+    pthread_mutex_t list_key;
+
+    list_key = (pthread_mutex_t) *list_key_void; //cast mutex
 
     while(1){
 		addr_len = sizeof(rmt_addr);
@@ -99,6 +105,9 @@ int main(){
 	socklen_t addr_len;
 	struct sigaction act_INT;
     pthread_t client_side, peer_side;
+    pthread_mutex_t list_key;            //mutex to guard serverlist operations
+
+    pthread_mutex_init(&list_key, NULL); //initialize mutex
 
 /****** SIGNAL MANAGEMENT ******/
 	act_INT.sa_handler = sigint_handler;
@@ -123,7 +132,7 @@ int main(){
 		perror("bind error");
 		exit(EXIT_FAILURE);
 	}
-    if( pthread_create(&client_side, NULL, c_interact, NULL ) != 0){
+    if( pthread_create(&client_side, NULL, c_interact, &list_key) != 0){
 				printf("Error creating a new thread\n");
                 exit(EXIT_FAILURE);
     }
@@ -143,7 +152,7 @@ int main(){
 		exit(EXIT_FAILURE);
 	}
 
-    if( pthread_create(&peer_side, NULL, p_interact,NULL ) != 0){
+    if( pthread_create(&peer_side, NULL, p_interact, &list_key) != 0){
 				printf("Error creating a new thread\n");
                 exit(EXIT_FAILURE);
     }
