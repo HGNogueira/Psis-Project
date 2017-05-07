@@ -41,7 +41,7 @@ int main(){
 		}
 		else if(err == 0){ //server disconnected
             //let gateway know that server stopped responding
-            /*
+            /* use function getsockname()
 			gw_msg.type = 1; //comunicate server stopped responding to gateway
 			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
 				perror("GW contact");
