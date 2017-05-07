@@ -31,26 +31,25 @@ void sigint_handler(int n){
 }
 
 /* thread that interacts with client requests, receives socket descriptor */
-void *c_interact(void *list_key_void){
+void *c_interact(void *list_key){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
     message_gw gw_msg;
-    pthread_mutex_t list_key;
-
-    list_key = (pthread_mutex_t) *list_key_void;  //cast mutex
 
     while(1){
 		addr_len = sizeof(rmt_addr);
 		recvfrom(sc, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &rmt_addr, &addr_len);
 		if(gw_msg.type == 0){ //contacted by client
 			printf("Contacted by new client\n");
-			if( (tmp_node = pick_server(servers)) != NULL){
+			if( (tmp_node = pick_server(servers, list_key)) != NULL){
 				printf("Server available with port %d\n", tmp_node->port);
 				gw_msg.type = 1; //notify server is available
 				strcpy(gw_msg.address, tmp_node->address);
 				gw_msg.port = tmp_node->port;
+                pthread_mutex_lock(list_key);
 				tmp_node->nclients = tmp_node->nclients + 1;
+                pthread_mutex_unlock(list_key);
 				sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
 			}
 			else{
@@ -67,29 +66,28 @@ void *c_interact(void *list_key_void){
 }
 
 /* thread that interacts with peer requests, receives socket descriptor */
-void *p_interact(void *list_key_void){
+void *p_interact(void *list_key){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
     message_gw gw_msg;
-    pthread_mutex_t list_key;
-
-    list_key = (pthread_mutex_t) *list_key_void; //cast mutex
 
     while(1){
 		addr_len = sizeof(rmt_addr);
 		recvfrom(sp, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &rmt_addr, &addr_len);
 		if(gw_msg.type == 1){ //contacted by peer
-			add_server(&servers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID);
+			add_server(&servers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID, list_key);
 			sendto(sp, &ID, sizeof(ID), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back ID information
 			ID++;
 			printf("New server available - addr=%s, port =%d\n", servers->address, servers->port);
 		}
 		else if(gw_msg.type == 2){   //server lost 1 connection
-			if(!(tmp_node = search_server(servers, gw_msg.ID)))
+			if(!(tmp_node = search_server(servers, gw_msg.ID, list_key)))
 				printf("Can't find server in list\n");
 			else
+                pthread_mutex_lock(list_key);
 				tmp_node->nclients = tmp_node->nclients - 1;
+                pthread_mutex_unlock(list_key);
 			printf("Updated information from server\n");
 		}
         else{
