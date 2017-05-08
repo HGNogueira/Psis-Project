@@ -14,5 +14,6 @@ typedef struct node{
 serverlist *init_server();
 serverlist *pick_server(serverlist *, pthread_mutex_t *list_key);//choose server according to least load rule
 void add_server(serverlist **servers, char *address, int port, int ID, pthread_mutex_t *list_key);
+int delete_peer(serverlist **, char *, int , pthread_mutex_t *);
 serverlist *search_server(serverlist *servers, int ID, pthread_mutex_t *list_key);
 
