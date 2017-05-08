@@ -20,7 +20,7 @@
 
 int run = 1;
 int sc, sp; // client side and server side socked descriptors
-serverlist *servers;  // linked list of servers, auxiliary node
+serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
 
 void sigint_handler(int n){
@@ -34,6 +34,7 @@ void sigint_handler(int n){
 int check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key){
     struct sockaddr_in srv_addr;
     int s, sgw;
+    int retval;
 
     if(  (s = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
 		perror("socket");
@@ -50,7 +51,17 @@ int check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key){
         close(s);
         return 0;
 	}
+
     printf("Server with address:%s and port %d stopped working\n", gw_msg->address, gw_msg->port);
+    retval = delete_peer(&servers, gw_msg->address, gw_msg->port, list_key);
+    if(retval == 1){
+        printf("Found and successfully deleted peer\n");
+    } else if(retval == 0){
+        printf("No server to delete found in serverlist\n");
+    } else if(retval == -1){
+        printf("Serverlist is empty, no peers to delete\n");
+    }
+
     close(sgw);
     close(s); 
     return 0;
