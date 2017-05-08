@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <unistd.h>
+
 #include "clientAPI.h" /* include header with function prototypes */
 #include "messages.h"  /* message description headers */
 
@@ -107,6 +109,7 @@ int gallery_connect(char *host, in_port_t port){
 
 	if( connect(s, (const struct sockaddr *) &peer_addr, sizeof(struct sockaddr_in)) == -1){
 		perror("connect");
+        update_peer_loss();
 		exit(EXIT_FAILURE);
 	}
 
