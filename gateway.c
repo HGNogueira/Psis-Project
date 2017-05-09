@@ -19,7 +19,7 @@
 #define PEER_SIDE_PORT 3001
 
 int run = 1;
-int sc, sp; // client side and server side socked descriptors
+int sc, sp; // client side and server side socket descriptors
 serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
 
@@ -63,7 +63,7 @@ int check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key){
     }
 
     close(sgw);
-    close(s); 
+    close(s);
     return 0;
 }
 
@@ -153,19 +153,19 @@ int main(){
 	act_INT.sa_flags=0;
 	sigaction(SIGINT, &act_INT, NULL);
 /****** SIGNAL MANAGEMENT ******/
-        
+
 	servers = init_server();  // initialize server list
 
 /****** INITIALIZE client side socket ******/
 	gwc_addr.sin_family = AF_INET;
 	gwc_addr.sin_port = htons(CLIENT_SIDE_PORT);
 	gwc_addr.sin_addr.s_addr = INADDR_ANY;
-	
+
 	if( (sc=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
 		perror("socket error");
 		exit(EXIT_FAILURE);
 	}
-	
+
 	if( (bind(sc, (const struct sockaddr *) &gwc_addr, sizeof(gwc_addr))) == -1){
 		perror("bind error");
 		exit(EXIT_FAILURE);
@@ -179,12 +179,12 @@ int main(){
 	gwp_addr.sin_family = AF_INET;
 	gwp_addr.sin_port = htons(PEER_SIDE_PORT);
 	gwp_addr.sin_addr.s_addr = INADDR_ANY;
-	
+
 	if( (sp=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
 		perror("socket error");
 		exit(EXIT_FAILURE);
 	}
-	
+
 	if( (bind(sp, (const struct sockaddr *) &gwp_addr, sizeof(gwp_addr))) == -1){
 		perror("bind error");
 		exit(EXIT_FAILURE);
@@ -194,7 +194,7 @@ int main(){
 				printf("Error creating a new thread\n");
                 exit(EXIT_FAILURE);
     }
-    
+
 /****** END OF EXECUTION ********/
     pause(); //pause indefinately until SIGINIT
 }
