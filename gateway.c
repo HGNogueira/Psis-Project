@@ -31,7 +31,7 @@ void sigint_handler(int n){
 }
 
 /* attempt to connect to server and confirm if it is dead */
-int check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key){
+int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
     struct sockaddr_in srv_addr;
     int s, sgw;
     int retval;
@@ -53,7 +53,7 @@ int check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key){
 	}
 
     printf("Server with address:%s and port %d stopped working\n", gw_msg->address, gw_msg->port);
-    retval = delete_peer(&servers, gw_msg->address, gw_msg->port, list_key);
+    retval = delete_peer(&servers, gw_msg->address, gw_msg->port, rwlock);
     if(retval == 1){
         printf("Found and successfully deleted peer\n");
     } else if(retval == 0){
@@ -68,7 +68,7 @@ int check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key){
 }
 
 /* thread that interacts with client requests, receives socket descriptor */
-void *c_interact(void *list_key){
+void *c_interact(void *rwlock){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
@@ -79,15 +79,15 @@ void *c_interact(void *list_key){
 		recvfrom(sc, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &rmt_addr, &addr_len);
 		if(gw_msg.type == 0){ //contacted by client
 			printf("Contacted by new client\n");
-			if( (tmp_node = pick_server(servers, list_key)) != NULL){
+			if( (tmp_node = pick_server(&servers, rwlock)) != NULL){
 				gw_msg.type = 1; //notify server is available
 				strcpy(gw_msg.address, tmp_node->address);
 				gw_msg.port = tmp_node->port;
 
-                pthread_mutex_lock(list_key);
+                pthread_rwlock_wrlock(rwlock); //could do rdlock->wrlock but more expensive
 				printf("Server available with port %d\n", tmp_node->port);
 				tmp_node->nclients = tmp_node->nclients + 1;
-                pthread_mutex_unlock(list_key);
+                pthread_rwlock_unlock(rwlock);
 
 				sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
 			}
@@ -98,7 +98,7 @@ void *c_interact(void *list_key){
 			}
 
 		} else if(gw_msg.type == -1){ //server connection lost
-                check_and_update_peer(&gw_msg, list_key);
+                check_and_update_peer(&gw_msg, rwlock);
         } else{
             printf("Received message from client with non-defined type %d\n", gw_msg.type);
         }
@@ -106,7 +106,7 @@ void *c_interact(void *list_key){
 }
 
 /* thread that interacts with peer requests, receives socket descriptor */
-void *p_interact(void *list_key){
+void *p_interact(void *rwlock){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
@@ -116,20 +116,20 @@ void *p_interact(void *list_key){
 		addr_len = sizeof(rmt_addr);
 		recvfrom(sp, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &rmt_addr, &addr_len);
 		if(gw_msg.type == 1){ //contacted by peer
-			add_server(&servers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID, list_key);
+			add_server(&servers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID, rwlock);
 			sendto(sp, &ID, sizeof(ID), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back ID information
 			ID++;
 			printf("New server available - addr=%s, port =%d\n", servers->address, servers->port);
 		} else if(gw_msg.type == 2){   //server lost 1 connection
-			if(!(tmp_node = search_server(servers, gw_msg.ID, list_key)))
+			if(!(tmp_node = search_server(&servers, gw_msg.ID, rwlock)))
 				printf("Can't find server in list\n");
 			else
-                pthread_mutex_lock(list_key);
+                pthread_rwlock_wrlock(rwlock);
 				tmp_node->nclients = tmp_node->nclients - 1;
-                pthread_mutex_unlock(list_key);
+                pthread_rwlock_unlock(rwlock);
                 printf("Updated information from server\n");
 		} else if(gw_msg.type == -1){ //server connection lost
-                check_and_update_peer(&gw_msg, list_key);
+                check_and_update_peer(&gw_msg, rwlock);
         } else{
             printf("Received message from peer with non-defined type %d\n", gw_msg.type);
         }
@@ -143,9 +143,9 @@ int main(){
 	socklen_t addr_len;
 	struct sigaction act_INT;
     pthread_t client_side, peer_side;
-    pthread_mutex_t list_key;            //mutex to guard serverlist operations
+    pthread_rwlock_t rwlock;                 //rwlock to guard serverlist
 
-    pthread_mutex_init(&list_key, NULL); //initialize mutex
+    pthread_rwlock_init(&rwlock,NULL);
 
 /****** SIGNAL MANAGEMENT ******/
 	act_INT.sa_handler = sigint_handler;
@@ -170,7 +170,7 @@ int main(){
 		perror("bind error");
 		exit(EXIT_FAILURE);
 	}
-    if( pthread_create(&client_side, NULL, c_interact, &list_key) != 0){
+    if( pthread_create(&client_side, NULL, c_interact, &rwlock) != 0){
 				printf("Error creating a new thread\n");
                 exit(EXIT_FAILURE);
     }
@@ -190,7 +190,7 @@ int main(){
 		exit(EXIT_FAILURE);
 	}
 
-    if( pthread_create(&peer_side, NULL, p_interact, &list_key) != 0){
+    if( pthread_create(&peer_side, NULL, p_interact, &rwlock) != 0){
 				printf("Error creating a new thread\n");
                 exit(EXIT_FAILURE);
     }
