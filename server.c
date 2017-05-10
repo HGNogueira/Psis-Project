@@ -101,19 +101,19 @@ int main(){
 	srv_addr.sin_family = AF_INET;
 	srv_addr.sin_port = htons(S_PORT + getpid());
 	srv_addr.sin_addr.s_addr = INADDR_ANY;
-	
+
 	if(  (err = bind(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in)))== -1){
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
-	
+
 	if( (err = listen(s, 10)) == -1){
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
 	printf("Ready to accept\n");
 /****** SOCK_STREAM PREPARED *******/
-	
+
 /****** CONTACT GATEWAY ******/
 	gw_addr.sin_family = AF_INET;
 
@@ -130,11 +130,11 @@ int main(){
 	printf("Gateway address: %s\n", fread_buff);
 	inet_aton(fread_buff, &gw_addr.sin_addr);
 	fclose(f);
-	
+
 	gw_msg.type = 1;
 	gw_msg.port = S_PORT + getpid();
 	printf("My port is %d\n", gw_msg.port);
-	
+
 	if( (s_gw=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
 		perror("socket error");
 		exit(EXIT_FAILURE);
@@ -166,9 +166,9 @@ int main(){
 
 		}
 	}
-	
+
 	/* close thread_list */
-	
+
 	close(s);
 	exit(EXIT_SUCCESS);
 }

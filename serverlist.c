@@ -19,7 +19,7 @@ serverlist *pick_server(struct node *servers, pthread_mutex_t *list_key){
 
 	s1 = servers;
 	s2 = servers;
-    
+
     pthread_mutex_lock(list_key); //danger of server stop existing
 	while(s1->next){
 		if(s2->nclients > s1->next->nclients){
@@ -51,7 +51,7 @@ void add_server(serverlist **servers, char *address, int port, int ID, pthread_m
  * is returned, if success 1 is returned */
 int delete_peer(serverlist **peers, char *address, int port, pthread_mutex_t *list_key){
 	struct node *s1, *s2;
-    
+
     pthread_mutex_lock(list_key);
 
 	s1 = *peers;
@@ -85,7 +85,7 @@ int delete_peer(serverlist **peers, char *address, int port, pthread_mutex_t *li
 
 serverlist *search_server(serverlist *servers, int ID, pthread_mutex_t *list_key){
 	struct node *s;
-    
+
     pthread_mutex_lock(list_key);
 	s = servers;
 	if(s == NULL)
