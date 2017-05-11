@@ -32,6 +32,8 @@ struct task{
     task *previous;
 };
 
+
+
 struct pthread_node{
 	pthread_t thread_id;
 	int s;
@@ -50,7 +52,22 @@ void convert_toupper(char *string){
 	}
 }
 
-void *c_interact(void *thread_scl){
+    /* this thread function implements the server updating routine */
+void update_peer(void *thread_scl){
+
+}
+
+    /* this thread function implements normal son-peer interaction */
+void pson_interact(void *thread_scl){
+
+}
+
+    /* this thread function implements father-peer interaction */
+void *pfather_interact(void *thread_s){
+}
+
+    /* this thread function implements to client-peer interaction */
+void c_interact(void *thread_scl){
 	int scl = (int) *((int *) thread_scl);
 	int err;
 	message smsg;
@@ -69,7 +86,7 @@ void *c_interact(void *thread_scl){
 				perror("GW contact");
 			}
 			close(scl);
-			return(NULL);
+			return;
 		}
 		printf("New receive\n");
 		strcpy( smsg.buffer, rmsg.buffer);
@@ -99,8 +116,10 @@ void *id_socket(void *thread_s){
 
     if( rmt_identifier == 0){ //approached by new client
         c_interact(thread_s);
-    } else if( rmt_identifier == 1){ //approached by new peer (must update)
-    } else if( rmt_identifier == 2){ //approached by lone peer (dont update)
+    } else if( rmt_identifier == 1){ //peer requires updating
+        update_peer(thread_s); //will start updating peer with the existing content
+    } else if( rmt_identifier == 2){ //peer joins the chain
+        pson_interact(thread_s);
     } 
 }
 
@@ -182,16 +201,23 @@ int main(){
 	addr_len = sizeof(gw_addr);
 	recvfrom(s_gw, &ID, sizeof(ID), 0, (struct sockaddr *) &gw_addr, &addr_len);
 	printf("I was assign ID=%d\n", ID);
-/****** GATEWAY CONTACT ESTABLISHED *****/
+
+    //initiate new father peer interaction thread
+    if( pthread_create(&(thread_list->thread_id) , NULL, pfather_interact, &(thread_list->s)) != 0)
+				printf("Error creating a new thread\n");
+
+    thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
+    thread_list = thread_list->next;
 
 
-/****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
+    /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
 	rmt_addr_len = sizeof(struct sockaddr_in);
 	thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
 	thread_head = thread_list;
 	while(run){
 		if( (thread_list->s = accept(s, (struct sockaddr *) &rmt_addr, &rmt_addr_len)) != -1){
 
+            //initiate thread to identify and proceed with interaction
 			if( pthread_create(&(thread_list->thread_id) , NULL, id_socket, &(thread_list->s)) != 0)
 				printf("Error creating a new thread\n");
 
