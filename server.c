@@ -19,6 +19,18 @@ struct sockaddr_in gw_addr;
 message_gw gw_msg;
 int ID;            //identificador de servidor atribuido pela gateway
 
+    /* Define task structure indicating information about previous tasks
+     * these include every added photo, keyword, and every deleted photo
+     *
+     * this is usefull to be able to trace back what needs be done to update fellow peer
+     */
+typedef struct task{
+    int type;
+    uint64_t photo_id;
+    char keyword[50]; //added keyword
+    task *next;
+} task;
+
 struct pthread_node{
 	pthread_t thread_id;
 	int scl;
