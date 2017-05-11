@@ -22,6 +22,7 @@ int run = 1;
 int sc, sp; // client side and server side socked descriptors
 serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
+uint64_t photo_id = 0; /*photos id counter */
 
 void sigint_handler(int n){
     close(sc);
@@ -128,8 +129,11 @@ void *p_interact(void *rwlock){
 				tmp_node->nclients = tmp_node->nclients - 1;
                 pthread_rwlock_unlock(rwlock);
                 printf("Updated information from server\n");
-		} else if(gw_msg.type == -1){ //server connection lost
+		} else if(gw_msg.type == -1){   //peer to peer connection lost
                 check_and_update_peer(&gw_msg, rwlock);
+        } else if (gw_msg.type == 3){   //peer querying photo_id
+			sendto(sp, &photo_id, sizeof(photo_id), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back photo_id information
+            photo_id++;
         } else{
             printf("Received message from peer with non-defined type %d\n", gw_msg.type);
         }
