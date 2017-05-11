@@ -18,12 +18,15 @@ int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre thre
 struct sockaddr_in gw_addr;
 message_gw gw_msg;
 int ID;            //identificador de servidor atribuido pela gateway
+int updated = 0;   //identifica se peer já foi updated à cadeia de transferêcia de info
+struct pthread_node *thread_list, *thread_head;  //lista de threads
 
-    /* Define task structure indicating information about previous tasks
-     * these include every added photo, keyword, and every deleted photo
-     *
-     * this is usefull to be able to trace back what needs be done to update fellow peer
-     */
+
+/* Define task structure indicating information about previous tasks
+ * these include every added photo, keyword, and every deleted photo
+ *
+ * this is usefull to be able to trace back what needs be done to update fellow peer
+ */
 typedef struct task task;
 struct task{
     int type;
@@ -52,6 +55,12 @@ void convert_toupper(char *string){
 	}
 }
 
+
+    /* this thread function implements the getting up to date routine */
+void *get_updated(void *thread_scl){
+
+}
+
     /* this thread function implements the server updating routine */
 void update_peer(void *thread_scl){
 
@@ -64,6 +73,29 @@ void pson_interact(void *thread_scl){
 
     /* this thread function implements father-peer interaction */
 void *pfather_interact(void *thread_s){
+    int s, fatherpeer = 2;
+    message_gw gw_msg;
+    socklen_t addr_len;
+    struct sockaddr_in peer_addr;
+
+    /* wait to know who will be peer father, only thread/occasion where server recfrom gw */
+	recvfrom(s_gw, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &gw_addr, &addr_len);
+
+    peer_addr.sin_family = AF_INET;
+    peer_addr.sin_port = htons(gw_msg.port);
+	inet_aton(gw_msg.address, &peer_addr.sin_addr);
+
+    if(updated = 0){
+        //initiate new father peer interaction thread MISSING GUARD######
+        if( pthread_create(&(thread_list->thread_id) , NULL, get_updated, &(thread_list->s)) != 0)
+                    printf("Error creating a new thread\n");
+
+        thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
+    }
+
+	connect(s, (const struct sockaddr *) &peer_addr, sizeof(struct sockaddr_in));
+    send(s, &fatherpeer, sizeof(fatherpeer), 0);
+
 }
 
     /* this thread function implements to client-peer interaction */
@@ -132,7 +164,6 @@ int main(){
 	char fread_buff[50];
 	int port;
 	struct sigaction act_INT, act_SOCK;
-	struct pthread_node *thread_list, *thread_head;  //lista de threads
 	socklen_t addr_len;
 
 /****** SIGNAL MANAGEMENT ******/
