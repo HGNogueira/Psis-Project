@@ -24,16 +24,17 @@ int ID;            //identificador de servidor atribuido pela gateway
      *
      * this is usefull to be able to trace back what needs be done to update fellow peer
      */
-typedef struct task{
+typedef struct task task;
+struct task{
     int type;
     uint64_t photo_id;
     char keyword[50]; //added keyword
-    task *next;
-} task;
+    task *previous;
+};
 
 struct pthread_node{
 	pthread_t thread_id;
-	int scl;
+	int s;
 	struct pthread_node *next;
 };
 
@@ -80,12 +81,35 @@ void *c_interact(void *thread_scl){
 	}
 }
 
+    /* id_socket identifies which type of comunication has been established */
+void *id_socket(void *thread_s){
+    int err;
+    int rmt_identifier;
+    message_gw gw_msg;
+    int s = (int) *( (int *) thread_s);
+
+    if( (err = recv(s, &rmt_identifier, sizeof(rmt_identifier), 0)) == -1){
+			perror("recv error");
+			pthread_exit(NULL);
+    } else if(err == 0){ //client disconnected
+			printf("Unidentified remote connection disconnected from this peer\n");
+			close(s);
+			return(NULL);
+	}
+
+    if( rmt_identifier == 0){ //approached by new client
+        c_interact(thread_s);
+    } else if( rmt_identifier == 1){ //approached by new peer (must update)
+    } else if( rmt_identifier == 2){ //approached by lone peer (dont update)
+    } 
+}
+
 int main(){
-	int s, scl, err;
+	int s, srmt, err;
 	FILE *f;
 	struct sockaddr_in srv_addr;
-	struct sockaddr_in clt_addr;
-	socklen_t clt_addr_len;
+	struct sockaddr_in rmt_addr;
+	socklen_t rmt_addr_len;
 	char fread_buff[50];
 	int port;
 	struct sigaction act_INT, act_SOCK;
@@ -162,19 +186,21 @@ int main(){
 
 
 /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
-	clt_addr_len = sizeof(struct sockaddr_in);
+	rmt_addr_len = sizeof(struct sockaddr_in);
 	thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
 	thread_head = thread_list;
 	while(run){
-		if( (thread_list->scl = accept(s, (struct sockaddr *) &clt_addr, &clt_addr_len)) != -1){
-			if( pthread_create(&(thread_list->thread_id) , NULL, c_interact, &(thread_list->scl)) != 0)
+		if( (thread_list->s = accept(s, (struct sockaddr *) &rmt_addr, &rmt_addr_len)) != -1){
+
+			if( pthread_create(&(thread_list->thread_id) , NULL, id_socket, &(thread_list->s)) != 0)
 				printf("Error creating a new thread\n");
+
 
 			thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
 			thread_list = thread_list->next;
 		} else{
 			perror("accept");
-			//exit(EXIT_FAILURE):  //não sair para não interromper restantes threads?
+			//exit(EXIT_FAILURE):  //não sair para não interromper restantes threads
 
 		}
 	}
