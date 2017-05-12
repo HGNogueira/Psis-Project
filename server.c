@@ -13,6 +13,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include "messages.h"
 #define S_PORT 3001
 
@@ -36,7 +37,8 @@ typedef struct photo_node{
 
 typedef struct task_node{
     task_t task;
-    struct task_node *previous;
+    struct task_node *prev;
+    struct task_node *next;
 } tasklist_t;
 /******************************************************************************/
 
@@ -50,7 +52,7 @@ struct pthread_node *thread_list, *thread_head;  //lista de threads
 tasklist_t *tasklist;
 photolist_t *photolist;
 pthread_mutex_t task_mutex;
-pthread_cond_t task_cond; //conditional variable to propagate task
+sem_t task_sem;
 /******************************************************************************/
 
 void sigint_handler(int n){
@@ -68,6 +70,17 @@ void *get_updated(void *thread_s){
     message_gw gw_msg;
     socklen_t addr_len;
     photolist_t *tmp_photolist;
+    tasklist_t *tmp_task, *current_node;
+
+    pthread_mutex_lock(&task_mutex);
+    if(tasklist == NULL){
+        /* create dummy task */
+        current_node = (tasklist_t *) malloc(sizeof(tasklist_t));
+        current_node->task.type = -3; //indicates dummy task
+    }
+    else
+        current_node = tasklist;
+    pthread_mutex_unlock(&task_mutex);
 
 	while(1){
 		if( (err = recv(s, &recv_task, sizeof(task_t), 0)) == -1){
@@ -115,11 +128,23 @@ void *get_updated(void *thread_s){
                 tmp_photolist->next = photolist;
                 photolist = tmp_photolist;
 
+
+
                 break;
             default:
                 printf("Strange task type (%d) while getting up to date... danger of unobtained synchronization...", recv_task.type);
                 continue;
         }
+        /* add task to tasklist as previous task */
+        /* no danger of missing guard, only one righting opposite sense
+         * can only update if it isnt getting updated */
+        tmp_task = (tasklist_t *) malloc(sizeof(tasklist_t));
+        tmp_task->task = recv_task;
+        tmp_task->next = current_node;
+        tmp_task->prev = NULL;
+        current_node->prev = tmp_task;
+        current_node = tmp_task;
+
     }
 }
 
@@ -134,6 +159,10 @@ void update_peer(void *thread_s){
     update_list = tasklist;
 
     while(1){
+        if(update_list->task.type == -3){ //don't send dummy task
+            update_list = update_list->prev;
+            continue;
+        }
         /* if its the last item on tasklist */
         if(update_list == NULL){
             termination_task.type = -2;
@@ -153,7 +182,7 @@ void update_peer(void *thread_s){
         
         /* remain trying to send the same task if acknowledge != 1 */
         if(acknowledge == 1)
-            update_list = update_list->previous;
+            update_list = update_list->prev;
     }
 
 }
@@ -163,15 +192,17 @@ void update_peer(void *thread_s){
 void pson_interact(void *thread_s){
     int s = (int) *((int*) thread_s);
     int err;
+    
+    /* semaphore wait */
+    tasklist_t *auxlist = tasklist;
 
     while(1){
-        pthread_mutex_lock(&task_mutex);
-        pthread_cond_wait(&task_cond, &task_mutex);
-        /*wait for signal */
-        if( (err = send(s, &(tasklist->task), sizeof(task_t), 0) ) == -1){
+        if( (err = send(s, &(auxlist->task), sizeof(task_t), 0) ) == -1){
                 perror("send error");
         }
-        pthread_mutex_unlock(&task_mutex);
+        /* semaphore: wait for new tasks */
+        sem_wait(&task_sem);
+        auxlist = auxlist->next;
     }
 }
 
@@ -267,11 +298,13 @@ void *pfather_interact(void *dummy){
 
         /* insert tmp_list to head of task list */ 
         pthread_mutex_lock(&task_mutex);
-        tmp_tasklist->previous = tasklist;
-        tasklist = tmp_tasklist; 
-
-        /* signal pson thread to propagate this task */
-        pthread_cond_signal(&task_cond);
+        tmp_tasklist->next = NULL;
+        tmp_tasklist->prev = tasklist;
+        if(tasklist!=NULL){
+            tasklist->next = tmp_tasklist;
+        } 
+        tasklist = tmp_tasklist;
+        sem_post(&task_sem);
         pthread_mutex_unlock(&task_mutex);
     }
 }
@@ -356,15 +389,17 @@ void c_interact(void *thread_scl){
 
         /* insert task into task_list */
         tmp_tasklist = (tasklist_t *) malloc(sizeof(tasklist_t));
-        tmp_tasklist->task = recv_task;
+        tmp_tasklist->task.ID = ID;
 
         /* insert tmp_list to head of task list */ 
         pthread_mutex_lock(&task_mutex);
-        tmp_tasklist->previous = tasklist;
-        tasklist = tmp_tasklist; 
-
-        /* signal pson thread to propagate this task */
-        pthread_cond_signal(&task_cond);
+        tmp_tasklist->next = NULL;
+        tmp_tasklist->prev = tasklist;
+        if(tasklist!=NULL){
+            tasklist->next = tmp_tasklist;
+        } 
+        tasklist = tmp_tasklist;
+        sem_post(&task_sem);
         pthread_mutex_unlock(&task_mutex);
 	}
 }
@@ -482,8 +517,8 @@ int main(){
 
     //initialize tasklist
     tasklist = NULL;
-    pthread_cond_init(&task_cond, NULL);
     pthread_mutex_init(&task_mutex, NULL);
+    sem_init(&task_sem, 0, 0); //initialize semaphore with value 0
     //initialize photolise
     photolist = NULL;
 
