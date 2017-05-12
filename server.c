@@ -75,7 +75,14 @@ void update_peer(void *thread_scl){
 
     /* this thread function implements normal son-peer interaction */
 void pson_interact(void *thread_scl){
+    int s;
 
+    s = (int) *((int*) thread_scl);
+
+    while(1){
+        /*wait for signal */
+        send(s, &(tasklist->task), sizeof(task_t), 0);
+    }
 }
 
     /* this thread function implements father-peer interaction */
