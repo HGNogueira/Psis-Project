@@ -21,27 +21,28 @@ int ID;            //identificador de servidor atribuido pela gateway
 int updated = 0;   //identifica se peer já foi updated à cadeia de transferêcia de info
 struct pthread_node *thread_list, *thread_head;  //lista de threads
 
-
-/* Define task structure indicating information about previous tasks
- * these include every added photo, keyword, and every deleted photo
- *
- * this is usefull to be able to trace back what needs be done to update fellow peer
- */
-typedef struct task task;
-struct task{
-    int type;
-    uint64_t photo_id;
-    char keyword[50]; //added keyword
-    task *previous;
-};
-
-
-
+    /* list of threads to easily initiate threads willingly */
 struct pthread_node{
 	pthread_t thread_id;
 	int s;
 	struct pthread_node *next;
 };
+
+    /* list of photos, includes extra information for peer replication purposes */
+typedef struct photo_node{
+    uint32_t photo_id;
+    char photo_name[50];
+    unsigned photo_size;
+    int exists; //indicates if photo exists within database or still mereley information about it
+    int deleted; //indicates if photo has been deleted
+    struct photo_node *next;
+} photo_list;
+
+typedef struct task_node{
+    int ID; //identifies the peer that introduced task into the chain
+    task_t task;
+    struct task_node *previous;
+} tasklist;
 
 void sigint_handler(int n){
 	run = 0;
