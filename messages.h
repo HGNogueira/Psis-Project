@@ -12,6 +12,7 @@ typedef struct message_gw{
      *  1 : server initiating contact
      *  2 : peer lost one client (load balancing)
      *  3 : peer lost father peer
+     *  4 : peer demaning photo_id generation
      *
      *  gateway -> client
      *  0 : no available peers in response to client contact
@@ -47,6 +48,7 @@ typedef struct message{
 typedef struct task task_t;
 struct task{
     /* task type contains information about the action to take with this task
+     * -2: update terminated (sent by updating peer indicating end of update routine)
      * -1: delete photo with photo_id
      *  0: add keyword to photo_id
      *  1: add new photo with photo_name and nbytes;
