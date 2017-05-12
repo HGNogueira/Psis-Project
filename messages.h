@@ -11,6 +11,7 @@ typedef struct message_gw{
      *  0 : client initiating contact
      *  1 : server initiating contact
      *  2 : peer lost one client (load balancing)
+     *  3 : peer lost father peer
      *
      *  gateway -> client
      *  0 : no available peers in response to client contact
@@ -45,10 +46,17 @@ typedef struct message{
 
 typedef struct task task_t;
 struct task{
+    /* task type contains information about the action to take with this task
+     * -1: delete photo with photo_id
+     *  0: add keyword to photo_id
+     *  1: add new photo with photo_name and nbytes;
+     *
+     */
     int type;
-    uint64_t photo_id;   //
+    int ID;              //will correspond to the ID of the responsible peer
+    uint64_t photo_id;   //corresponds to the filename
     char photo_name[50]; //corresponds to the filename to save photo
     char keyword[50];    //added keyword or lookup keyword
     int delete;
-    unsigned nbytes;
+    unsigned photo_size;
 };
