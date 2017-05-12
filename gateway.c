@@ -36,6 +36,7 @@ int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
     struct sockaddr_in srv_addr;
     int s, sgw;
     int retval;
+    int rmt_identifier;
 
     if(  (s = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
 		perror("socket");
@@ -47,7 +48,10 @@ int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
 	inet_aton(gw_msg->address, &srv_addr.sin_addr);
 
 	if( (sgw = connect(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in))) == 0){
-		printf("Server is still alive\n");
+		printf("Server with port=%d is still alive\n", gw_msg->port);
+        /* comunicate with server that gateway is just checking its status */
+        rmt_identifier = 3;
+        send(s, &rmt_identifier, sizeof(rmt_identifier), 0);
         close(sgw);
         close(s);
         return 0;
