@@ -53,10 +53,16 @@ tasklist_t *tasklist;
 photolist_t *photolist;
 pthread_mutex_t task_mutex;
 sem_t task_sem;
+int recon = 0;    //indicates if peer comes from a broken connection or is first time connecting
 /******************************************************************************/
 
 void sigint_handler(int n){
 	run = 0;
+}
+
+    /*evaluates wether this task has not yet been performed */
+int is_task_new(task_t *task){
+    return 1;
 }
 
     /* this thread function implements the getting up to date routine
@@ -192,17 +198,25 @@ void update_peer(void *thread_s){
 void pson_interact(void *thread_s){
     int s = (int) *((int*) thread_s);
     int err;
+    int acknowledge; //indicates if son peer wants next or previous item on list
     
     /* semaphore wait */
     tasklist_t *auxlist = tasklist;
 
     while(1){
-        if( (err = send(s, &(auxlist->task), sizeof(task_t), 0) ) == -1){
-                perror("send error");
+        send(s, &(auxlist->task), sizeof(task_t), 0);
+
+        if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
+            close(s);
+            return;
         }
-        /* semaphore: wait for new tasks */
-        sem_wait(&task_sem);
-        auxlist = auxlist->next;
+        if(acknowledge = -1){
+            auxlist = auxlist->prev;
+        } else if(acknowledge = 1){
+            /* semaphore: wait for new tasks */
+            sem_wait(&task_sem);
+            auxlist = auxlist->next;
+        }
     }
 }
 
@@ -216,7 +230,12 @@ void *pfather_interact(void *dummy){
     task_t recv_task;
     tasklist_t *tmp_tasklist;
     photolist_t *tmp_photolist;
+    int acknowledge; //used to ask for previous tasks if connection has been previously broken (recon global variable);
 
+    /* demand gateway a new father peer */
+    gw_msg.type = 5; 
+    gw_msg.ID = ID;
+    sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
     /* wait to know who will be peer father, only thread/occasion where server recfrom gw */
 	recvfrom(s_gw, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &gw_addr, &addr_len);
 
@@ -249,12 +268,26 @@ void *pfather_interact(void *dummy){
 				perror("GW contact");
 			}
 			close(s);
+            recon = 1;              // this will be a reconnected peer for now on
             pfather_interact(NULL); //go back to trying to connect with new father
 			return;
 		}
 
+        acknowledge = 1; //in case recv_task.ID=ID I know I can go to next task
         /* only process task if this peer isn't the one responsible for it */
         if(recv_task.ID != ID ){
+            /* if this is a reconnected peer I must verify Im back in the chain at the right task */
+            if(recon == 1){
+                /* identify if task has taken place already */
+                acknowledge = is_task_new(&recv_task);
+            } 
+
+            if(acknowledge = -1){
+                send(s, &acknowledge, sizeof(acknowledge), 0);
+                continue;
+            }
+            /* if it reaches here we may now consider this peer not to be a reconnected peer anymore */
+            recon = 0;
             /* process new task */
             tmp_tasklist = (tasklist_t*) malloc(sizeof(tasklist_t));
             switch(recv_task.type){
@@ -294,8 +327,6 @@ void *pfather_interact(void *dummy){
                     free(tmp_tasklist);
                     continue;
             }
-        }
-
         /* insert tmp_list to head of task list */ 
         pthread_mutex_lock(&task_mutex);
         tmp_tasklist->next = NULL;
@@ -306,6 +337,9 @@ void *pfather_interact(void *dummy){
         tasklist = tmp_tasklist;
         sem_post(&task_sem);
         pthread_mutex_unlock(&task_mutex);
+        }
+        send(s, &acknowledge, sizeof(acknowledge), 0);
+
     }
 }
 
