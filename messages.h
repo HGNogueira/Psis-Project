@@ -12,7 +12,8 @@ typedef struct message_gw{
      *  1 : server initiating contact
      *  2 : peer lost one client (load balancing)
      *  3 : peer lost father peer
-     *  4 : peer demaning photo_id generation
+     *  4 : peer demanding photo_id generation
+     *  5 : peer demanding father peer to connect
      *
      *  gateway -> client
      *  0 : no available peers in response to client contact
