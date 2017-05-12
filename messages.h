@@ -48,6 +48,7 @@ typedef struct message{
 typedef struct task task_t;
 struct task{
     /* task type contains information about the action to take with this task
+     * -3: dummy task, should be ignored
      * -2: update terminated (sent by updating peer indicating end of update routine)
      * -1: delete photo with photo_id
      *  0: add keyword to photo_id
