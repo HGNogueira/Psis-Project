@@ -44,44 +44,134 @@ typedef struct task_node{
 /****************** GLOBAL VARIABLES ******************************************/
 int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
 struct sockaddr_in gw_addr;
-message_gw gw_msg;
 int ID;            //identificador de servidor atribuido pela gateway
 int updated = 0;   //identifica se peer já foi updated à cadeia de transferêcia de info
 struct pthread_node *thread_list, *thread_head;  //lista de threads
 tasklist_t *tasklist;
 photolist_t *photolist;
+pthread_mutex_t task_mutex;
+pthread_cond_t task_cond; //conditional variable to propagate task
 /******************************************************************************/
 
 void sigint_handler(int n){
 	run = 0;
 }
 
-void convert_toupper(char *string){
-	int i = 0;
-	while(string[i] != '\0'){
-		string[i] = toupper(string[i]);
-		i++;
-	}
-}
-    /* this thread function implements the getting up to date routine */
-void *get_updated(void *thread_scl){
+    /* this thread function implements the getting up to date routine
+     *
+     * this process starts sequentally running every task given from more recent to older */
+void *get_updated(void *thread_s){
+    int s = (int) *((int *) thread_s);
+	int err;
+    int photo_id;
+    task_t recv_task;
+    message_gw gw_msg;
+    socklen_t addr_len;
+    photolist_t *tmp_photolist;
 
+	while(1){
+		if( (err = recv(s, &recv_task, sizeof(task_t), 0)) == -1){
+			perror("recv error");
+            close(s);
+			return;
+		}
+		else if(err == 0){ //client disconnected
+			printf("Peer disconnected from this server while updating me...\n");
+            printf("Updated status still not granted\n");
+			close(s);
+			return;
+		}
+		printf("Received new task from client\n");
+        /* process new task */
+        switch(recv_task.type){
+            case -2:
+                printf("Updating process has reached its end, changing my status to updated peer\n");
+                updated = 1;
+                break;
+            case -1:
+                printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
+
+                /* delete photo */
+
+                break;
+            case 0:
+                printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
+
+                /* add keyword to keyword list */
+
+                break;
+            case 1:
+                printf("Adding new photo with id=%"PRIu64"\n", recv_task.photo_id);
+                /* add photo to photolist */
+                tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
+                strcmp(tmp_photolist->photo_name, recv_task.photo_name);
+                tmp_photolist->photo_size = recv_task.photo_size;
+                tmp_photolist->exists = 0;
+                tmp_photolist->deleted = 0;
+                tmp_photolist->photo_id = recv_task.photo_id;
+
+                /* add photo to photolist */
+                /*######### NEED PHOTOLIST GUARD #######*/
+                tmp_photolist->next = photolist;
+                photolist = tmp_photolist;
+
+                break;
+            default:
+                printf("Strange task type (%d) while getting up to date... danger of unobtained synchronization...", recv_task.type);
+                continue;
+        }
+    }
 }
 
     /* this thread function implements the server updating routine */
-void update_peer(void *thread_scl){
+void update_peer(void *thread_s){
+    int s = (int) *((int*) thread_s);
+    int err;
+    int acknowledge;
+    tasklist_t *update_list;
+    task_t termination_task;
+
+    update_list = tasklist;
+
+    while(1){
+        /* if its the last item on tasklist */
+        if(update_list == NULL){
+            termination_task.type = -2;
+            send(s, &termination_task, sizeof(task_t), 0);
+            close(s);
+            return;
+        }
+
+        if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
+                perror("send error");
+        }
+        /* wait for acknowledge */
+        if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
+            close(s);
+            return;
+        }
+        
+        /* remain trying to send the same task if acknowledge != 1 */
+        if(acknowledge == 1)
+            update_list = update_list->previous;
+    }
 
 }
 
     /* this thread function implements normal son-peer interaction */
-void pson_interact(void *thread_scl){
-    int s;
-
-    s = (int) *((int*) thread_scl);
+    /* it propagates the last task to its son */
+void pson_interact(void *thread_s){
+    int s = (int) *((int*) thread_s);
+    int err;
 
     while(1){
+        pthread_mutex_lock(&task_mutex);
+        pthread_cond_wait(&task_cond, &task_mutex);
         /*wait for signal */
-        send(s, &(tasklist->task), sizeof(task_t), 0);
+        if( (err = send(s, &(tasklist->task), sizeof(task_t), 0) ) == -1){
+                perror("send error");
+        }
+        pthread_mutex_unlock(&task_mutex);
     }
 }
 
@@ -121,8 +211,8 @@ void *pfather_interact(void *dummy){
 			pthread_exit(NULL);
 		}
 		else if(err == 0){ //peer disconnected
-			printf("Client disconnected from this server\n");
-			gw_msg.type = 3; //indicar à gateway que pai desconectou-se
+			printf("Father peer disconnected from this server\n");
+			gw_msg.type = -1; //indicar à gateway que pai desconectou-se
 			gw_msg.ID = ID;
 			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
 				perror("GW contact");
@@ -162,7 +252,7 @@ void *pfather_interact(void *dummy){
                     tmp_photolist->exists = 0;
                     tmp_photolist->deleted = 0;
 
-                    /*######### NEED GUARD #######*/
+                    /*######### NEED PHOTOLIST GUARD #######*/
                     tmp_photolist->next = photolist;
                     photolist = tmp_photolist;
 
@@ -175,11 +265,14 @@ void *pfather_interact(void *dummy){
             }
         }
 
-        /* insert tmp_list to head of task list */ /*###### NEED GUARD #### */
+        /* insert tmp_list to head of task list */ 
+        pthread_mutex_lock(&task_mutex);
         tmp_tasklist->previous = tasklist;
         tasklist = tmp_tasklist; 
 
         /* signal pson thread to propagate this task */
+        pthread_cond_signal(&task_cond);
+        pthread_mutex_unlock(&task_mutex);
     }
 }
 
@@ -187,13 +280,18 @@ void *pfather_interact(void *dummy){
 void c_interact(void *thread_scl){
 	int scl = (int) *((int *) thread_scl);
 	int err;
-	message smsg;
-	message rmsg;
+    int photo_id;
+    task_t recv_task;
+    message_gw gw_msg;
+    socklen_t addr_len;
+    tasklist_t * tmp_tasklist;
+    photolist_t *tmp_photolist;
 
 	while(1){
-		if( (err = recv(scl, &rmsg, sizeof(message), 0)) == -1){
+		if( (err = recv(scl, &recv_task, sizeof(task_t), 0)) == -1){
 			perror("recv error");
-			pthread_exit(NULL);
+            close(scl);
+			return;
 		}
 		else if(err == 0){ //client disconnected
 			printf("Client disconnected from this server\n");
@@ -205,13 +303,69 @@ void c_interact(void *thread_scl){
 			close(scl);
 			return;
 		}
-		printf("New receive\n");
-		strcpy( smsg.buffer, rmsg.buffer);
-		convert_toupper(smsg.buffer);
-		printf("Turned %s into %s\n", rmsg.buffer, smsg.buffer);
-		if( (err = send(scl, &smsg, sizeof(smsg), 0)) == -1){
-                perror("send error");
+		printf("Received new task from client\n");
+        /* process new task */
+        tmp_tasklist = (tasklist_t*) malloc(sizeof(tasklist_t));
+        switch(recv_task.type){
+            case -1:
+                printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
+                tmp_tasklist->task = recv_task;
+
+                /* delete photo */
+
+                break;
+            case 0:
+                printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
+                tmp_tasklist->task = recv_task;
+
+                /* add keyword to keyword list */
+
+                break;
+            case 1:
+                printf("Adding new photo with id=%"PRIu64"\n", recv_task.photo_id);
+                tmp_tasklist->task = recv_task;
+                /* add photo to photolist */
+                tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
+                strcmp(tmp_photolist->photo_name, recv_task.photo_name);
+                tmp_photolist->photo_size = recv_task.photo_size;
+                tmp_photolist->exists = 0;
+                tmp_photolist->deleted = 0;
+
+                /* ask for photo_id from gateway */
+                gw_msg.type = 4;
+                gw_msg.ID = ID;
+                sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
+
+                addr_len = sizeof(gw_addr);
+                recvfrom(s_gw, &photo_id, sizeof(photo_id), 0, (struct sockaddr *) &gw_addr, &addr_len);
+
+                recv_task.photo_id = photo_id;
+                tmp_photolist->photo_id = photo_id;
+
+                /* add photo to photolist */
+                /*######### NEED PHOTOLIST GUARD #######*/
+                tmp_photolist->next = photolist;
+                photolist = tmp_photolist;
+
+                break;
+            default:
+                printf("Unknown routine for task with type %d\n", recv_task.type);
+                free(tmp_tasklist);
+                continue;
         }
+
+        /* insert task into task_list */
+        tmp_tasklist = (tasklist_t *) malloc(sizeof(tasklist_t));
+        tmp_tasklist->task = recv_task;
+
+        /* insert tmp_list to head of task list */ 
+        pthread_mutex_lock(&task_mutex);
+        tmp_tasklist->previous = tasklist;
+        tasklist = tmp_tasklist; 
+
+        /* signal pson thread to propagate this task */
+        pthread_cond_signal(&task_cond);
+        pthread_mutex_unlock(&task_mutex);
 	}
 }
 
@@ -233,11 +387,18 @@ void *id_socket(void *thread_s){
 
     if( rmt_identifier == 0){ //approached by new client
         c_interact(thread_s);
+        return NULL;
     } else if( rmt_identifier == 1){ //peer requires updating
         update_peer(thread_s); //will start updating peer with the existing content
+        return NULL;
     } else if( rmt_identifier == 2){ //peer joins the chain
         pson_interact(thread_s);
+        return NULL;
     } 
+    if( rmt_identifier == 3){ //gateway is just checking if server is alive
+        close(s);
+        return NULL;
+    }
 }
 
 int main(){
@@ -246,6 +407,7 @@ int main(){
 	struct sockaddr_in srv_addr;
 	struct sockaddr_in rmt_addr;
 	socklen_t rmt_addr_len;
+    message_gw gw_msg;
 	char fread_buff[50];
 	int port;
 	struct sigaction act_INT, act_SOCK;
@@ -278,7 +440,7 @@ int main(){
 		exit(EXIT_FAILURE);
 	}
 	
-	if( (err = listen(s, 10)) == -1){
+	if( (err = listen(s, 1000)) == -1){
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
@@ -320,6 +482,8 @@ int main(){
 
     //initialize tasklist
     tasklist = NULL;
+    pthread_cond_init(&task_cond, NULL);
+    pthread_mutex_init(&task_mutex, NULL);
     //initialize photolise
     photolist = NULL;
 
