@@ -54,6 +54,7 @@ photolist_t *photolist;
 pthread_mutex_t task_mutex;
 sem_t task_sem;
 int recon = 0;    //indicates if peer comes from a broken connection or is first time connecting
+pthread_t pson_thread = 0;  //identifies the thread running pson
 /******************************************************************************/
 
 void sigint_handler(int n){
@@ -461,6 +462,12 @@ void *id_socket(void *thread_s){
         update_peer(thread_s); //will start updating peer with the existing content
         return NULL;
     } else if( rmt_identifier == 2){ //peer joins the chain
+        /* only one pson thread is allowed per peer */
+        if(pson_thread != 0){
+            pthread_kill(pson_thread, SIGINT); //signal pson thread to stop
+        }
+        pson_thread = pthread_self();
+            
         pson_interact(thread_s);
         return NULL;
     } 
