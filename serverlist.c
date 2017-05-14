@@ -66,16 +66,14 @@ serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock){
 /* searches serverlist and deletes node, if not found 0 is returned, if serverlist empty -1
  * is returned, if success 1 is returned */
 int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *rwlock){
-	struct node *s1, *s2;
+	struct node *s1, *s2, *auxnode;
     
-    pthread_rwlock_rdlock(rwlock);
+    pthread_rwlock_wrlock(rwlock);
 	s1 = *peers;
 	if(s1 == NULL)
 		return -1;
 	if( strcmp(s1->address, address) == 0){
             if( s1->port == port){
-                pthread_rwlock_unlock(rwlock); //transform into wrlock
-                pthread_rwlock_wrlock(rwlock);
                 *peers = s1->next;
                 free(s1);
                 pthread_rwlock_unlock(rwlock);
@@ -87,8 +85,6 @@ int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *r
 		if( strcmp(s1->next->address, address) == 0){
             if( s1->port == port){
                 s2 = s1->next;
-                pthread_rwlock_unlock(rwlock); //transform into wrlock
-                pthread_rwlock_wrlock(rwlock);
                 s1->next = s2->next;
                 free(s2);
                 pthread_rwlock_unlock(rwlock);
