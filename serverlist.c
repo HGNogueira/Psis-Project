@@ -4,15 +4,43 @@
 #include <pthread.h>
 #include <sys/types.h>
 
+/* Implemented functions for serverlist looped linked list */
+
 /* inicialização da lista de servidores */
 serverlist *init_server(){
 	return NULL;
+}
+
+
+void add_server(serverlist **peers, char *address, int port, int ID, pthread_rwlock_t *rwlock){
+	serverlist *newnode, *auxnode;
+
+	newnode = (serverlist *) malloc(sizeof(serverlist));
+	strcpy(newnode->address, address);
+	newnode->port = port;
+	newnode->ID = ID;
+	newnode->nclients = 0;
+
+    pthread_rwlock_wrlock(rwlock); //must lock whole region, DANGER
+    if(*peers == NULL){
+        newnode->next = newnode; //next node is itself
+        *peers = newnode;
+    }
+    else{
+        auxnode = (*peers)->next;
+        (*peers)->next = newnode;
+        newnode->next = auxnode;
+    }//*server keeps pointing to the same node
+    pthread_rwlock_unlock(rwlock);
+    
+    return;
 }
 
 /* função que escolhe servidor com menos carga */
 serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock){
 	struct node *s1,*s2;
 	int clients;
+    int startID;
 
     //rwlock can be improved
     pthread_rwlock_rdlock(rwlock); //node musn't be freed while copying to aux nodes
@@ -21,9 +49,10 @@ serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock){
 		return NULL;
     }
 
+    startID = (*peers)->ID;
 	s1 = *peers;
 	s2 = *peers;
-	while(s1->next){
+	while(s1->next->ID != startID){
 		if(s2->nclients > s1->next->nclients){
 			s2 = s1->next;
 		}
@@ -32,23 +61,6 @@ serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock){
     pthread_rwlock_unlock(rwlock);
 
 	return s2;
-}
-
-void add_server(serverlist **servers, char *address, int port, int ID, pthread_rwlock_t *rwlock){
-	serverlist *newnode;
-
-	newnode = (serverlist *) malloc(sizeof(serverlist));
-	strcpy(newnode->address, address);
-	newnode->port = port;
-	newnode->ID = ID;
-	newnode->nclients = 0;
-
-    pthread_rwlock_wrlock(rwlock);
-	newnode->next = *servers;
-	*servers = newnode;
-    pthread_rwlock_unlock(rwlock);
-    
-    return;
 }
 
 /* searches serverlist and deletes node, if not found 0 is returned, if serverlist empty -1
@@ -91,6 +103,27 @@ int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *r
 }
 
 serverlist *search_server(serverlist **servers, int ID, pthread_rwlock_t *rwlock){
+	struct node *s;
+    
+    pthread_rwlock_rdlock(rwlock);
+	s = *servers;
+	if(s == NULL){
+        pthread_rwlock_unlock(rwlock);
+		return NULL;
+    }
+	while(s != NULL){
+		if(s->ID == ID){
+            pthread_rwlock_unlock(rwlock);
+			return s;
+        }
+		s = s->next;
+	}
+    pthread_rwlock_unlock(rwlock);
+	return NULL;
+}
+
+/* to be implemented ####.... */
+serverlist *search_father(serverlist **servers, int ID, pthread_rwlock_t *rwlock){
 	struct node *s;
     
     pthread_rwlock_rdlock(rwlock);
