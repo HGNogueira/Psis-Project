@@ -138,7 +138,17 @@ void *p_interact(void *rwlock){
         } else if (gw_msg.type == 3){   //peer querying photo_id
 			sendto(sp, &photo_id, sizeof(photo_id), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back photo_id information
             photo_id++;
-        } else{
+        } else if(gw_msg.type ==5 ){
+            if(!(tmp_node = search_father(&servers, gw_msg.ID, rwlock))){
+                printf("Peer can't be found on list, cannot attribute father peer\n");
+                continue;
+            }
+            gw_msg.type = 1; //notify server is available
+            strcpy(gw_msg.address, tmp_node->address);
+            gw_msg.port = tmp_node->port;
+            sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
+        }
+        else{
             printf("Received message from peer with non-defined type %d\n", gw_msg.type);
         }
 	}
