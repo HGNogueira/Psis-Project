@@ -7,6 +7,7 @@ typedef struct node{
 	int nclients;
     int updated; //indicates if peer is up to date
 	int ID;
+    struct node *prev;
 	struct node *next;
 } serverlist;
 
