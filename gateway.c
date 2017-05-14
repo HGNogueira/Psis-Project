@@ -89,10 +89,9 @@ void *c_interact(void *rwlock){
 				strcpy(gw_msg.address, tmp_node->address);
 				gw_msg.port = tmp_node->port;
 
-                pthread_rwlock_wrlock(rwlock); //could do rdlock->wrlock but more expensive
+                //no need for rwlock, worst realistic case slight load imbalance
 				printf("Server available with port %d\n", tmp_node->port);
 				tmp_node->nclients = tmp_node->nclients + 1;
-                pthread_rwlock_unlock(rwlock);
 
 				sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
 			}
@@ -129,20 +128,24 @@ void *p_interact(void *rwlock){
 			if(!(tmp_node = search_server(&servers, gw_msg.ID, rwlock)))
 				printf("Can't find server in list\n");
 			else
-                pthread_rwlock_wrlock(rwlock);
-				tmp_node->nclients = tmp_node->nclients - 1;
+                pthread_rwlock_rdlock(rwlock);//no need for wrlock (worst case slight load imbalance
+                if(tmp_node)//may have been deleted meanwhile
+                    tmp_node->nclients = tmp_node->nclients - 1;
                 pthread_rwlock_unlock(rwlock);
                 printf("Updated information from server\n");
 		} else if(gw_msg.type == -1){   //peer to peer connection lost
                 check_and_update_peer(&gw_msg, rwlock);
-        } else if (gw_msg.type == 3){   //peer querying photo_id
+        } else if (gw_msg.type == 4){   //peer querying photo_id
 			sendto(sp, &photo_id, sizeof(photo_id), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back photo_id information
+            //######## NEED photo_id GUARD !!!#####
             photo_id++;
-        } else if(gw_msg.type ==5 ){
+        }
+        else if(gw_msg.type ==5 ){/* peer searching for father */
             if(!(tmp_node = search_father(&servers, gw_msg.ID, rwlock))){
                 printf("Peer can't be found on list, cannot attribute father peer\n");
                 continue;
             }
+            printf("Peer with port %d will connect to peer with port %d\n", tmp_node->next->port, tmp_node->port);
             gw_msg.type = 1; //notify server is available
             strcpy(gw_msg.address, tmp_node->address);
             gw_msg.port = tmp_node->port;
