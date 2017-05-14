@@ -22,9 +22,13 @@ int main(){
     struct sockaddr_in peer_addr, gw_addr;
     char address[50];
     in_port_t port_s;
+
     message_gw gw_msg;
-	message rmsg;
-	message smsg;
+    task_t task;
+    int task_type;
+    char photo_name[50];
+    char keyword[50];
+    int photo_id;
 		
 	/****** CONTACT GATEWAY ******/
     port_s = htons(GATE_PORT);
@@ -41,22 +45,43 @@ int main(){
 
 	
 	while(1){  /* interaction */
-		fgets(scanned, MESSAGE_LEN, stdin);
-		strcpy(smsg.buffer, scanned);
-		if( send(s, (void *) &smsg, sizeof(message), 0) == -1){
+        printf("Type task type: -1, 0, 1:");
+        scanf("%d", &task_type);
+        task.type = task_type;
+        switch(task_type){
+            case -1:
+                printf("You want to delete a photo, whats the ID?\n");
+                scanf("%d", &photo_id);
+                task.photo_id = (uint64_t) photo_id; //use task type to transf id
+
+                /* delete photo */
+
+                break;
+            case 0:
+                printf("You want to add a keyword. Type keyword:");
+                scanf("%s", keyword);
+                printf("Type the photo ID:");
+                scanf("%d", &photo_id);
+                task.photo_id = (uint64_t) photo_id; //use task type to transf id
+                strcpy(task.keyword, keyword);
+
+                /* add keyword to keyword list */
+
+                break;
+            case 1:
+                printf("You want to add a photo. Whats its name?");
+                scanf("%s", photo_name);
+                strcpy(task.photo_name, photo_name);
+                task.type = 1;
+
+                break;
+            default:
+                printf("Unknown routine for task with type %d\n", task_type);
+                continue;
+        }
+		if( send(s, (void *) &task, sizeof(task), 0) == -1){
             perror("send");
             exit(EXIT_FAILURE);
         }
-        if( (err = recv(s, &rmsg, sizeof(message), 0)) == -1){
-			perror("recv error");
-			exit(EXIT_FAILURE);
-		}
-		else if(err == 0){ //server disconnected
-            update_peer_loss();
-            printf("Server stopped responding\n");
-			close(s);
-            exit(EXIT_FAILURE);
-		}
-		printf("sent %s --- received %s\n", smsg.buffer, rmsg.buffer);
 	}
 }
