@@ -45,6 +45,7 @@ typedef struct task_node{
 
 /****************** GLOBAL VARIABLES ******************************************/
 int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
+pthread_mutex_t gw_mutex;      
 struct sockaddr_in gw_addr;
 int ID;            //identificador de servidor atribuido pela gateway
 int updated = 0;   //identifica se peer já foi updated à cadeia de transferêcia de info
@@ -54,7 +55,8 @@ photolist_t *photolist;
 pthread_mutex_t task_mutex;
 sem_t task_sem;
 int recon = 0;    //indicates if peer comes from a broken connection or is first time connecting
-pthread_t pson_thread = 0;  //identifies the thread running pson
+int pson_run = 0;
+pthread_t pson_thread = 0;
 /******************************************************************************/
 
 void sigint_handler(int n){
@@ -202,9 +204,11 @@ void pson_interact(void *thread_s){
     int acknowledge; //indicates if son peer wants next or previous item on list
     
     /* semaphore wait */
+    sem_wait(&task_sem);
     tasklist_t *auxlist = tasklist;
 
-    while(1){
+    while(pson_run){
+        printf("New task for my son\n");
         send(s, &(auxlist->task), sizeof(task_t), 0);
 
         if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
@@ -213,12 +217,14 @@ void pson_interact(void *thread_s){
         }
         if(acknowledge = -1){
             auxlist = auxlist->prev;
-        } else if(acknowledge = 1){
-            /* semaphore: wait for new tasks */
-            sem_wait(&task_sem);
-            auxlist = auxlist->next;
+            continue;
         }
+        /* semaphore: wait for new tasks */
+        sem_wait(&task_sem);
+        auxlist = auxlist->next;
     }
+    printf("Closing old pson\n");
+    close(s);
 }
 
     /* this thread function implements father-peer interaction */
@@ -236,24 +242,46 @@ void *pfather_interact(void *dummy){
     /* demand gateway a new father peer */
     gw_msg.type = 5; 
     gw_msg.ID = ID;
+
+    pthread_mutex_lock(&gw_mutex);
     sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
     /* wait to know who will be peer father, only thread/occasion where server recfrom gw */
 	recvfrom(s_gw, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &gw_addr, &addr_len);
+    pthread_mutex_unlock(&gw_mutex);
 
     peer_addr.sin_family = AF_INET;
     peer_addr.sin_port = htons(gw_msg.port);
 	inet_aton(gw_msg.address, &peer_addr.sin_addr);
 
+    /*
     if(updated = 0){
         //initiate new father peer interaction thread MISSING GUARD######
+        
+        thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
+        thread_head = thread_list;
+
         if( pthread_create(&(thread_list->thread_id) , NULL, get_updated, &(thread_list->s)) != 0)
                     printf("Error creating a new thread\n");
 
         thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
     }
+    */
 
-	connect(s, (const struct sockaddr *) &peer_addr, sizeof(struct sockaddr_in));
+	if(  (s = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
+		perror("Father socket");
+		exit(EXIT_FAILURE);
+	}
+
+    if( connect(s, (const struct sockaddr *) &peer_addr, sizeof(struct sockaddr_in)) == -1){
+        gw_msg.type = -1;
+        sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
+        perror("Father connect");
+        pfather_interact(NULL); //go back to trying to connect with new father
+        exit(EXIT_FAILURE);
+    }
     send(s, &fatherpeer, sizeof(fatherpeer), 0);
+
+    printf("Connected to my father with port %d\n", gw_msg.port);
 
     while(1){
         if( (err = recv(s, &recv_task, sizeof(recv_task), 0)) == -1){
@@ -273,6 +301,7 @@ void *pfather_interact(void *dummy){
             pfather_interact(NULL); //go back to trying to connect with new father
 			return;
 		}
+        printf("New task from my father\n");
 
         acknowledge = 1; //in case recv_task.ID=ID I know I can go to next task
         /* only process task if this peer isn't the one responsible for it */
@@ -283,7 +312,7 @@ void *pfather_interact(void *dummy){
                 acknowledge = is_task_new(&recv_task);
             } 
 
-            if(acknowledge = -1){
+            if(acknowledge == -1){
                 send(s, &acknowledge, sizeof(acknowledge), 0);
                 continue;
             }
@@ -328,17 +357,17 @@ void *pfather_interact(void *dummy){
                     free(tmp_tasklist);
                     continue;
             }
-        /* insert tmp_list to head of task list */ 
-        pthread_mutex_lock(&task_mutex);
-        tmp_tasklist->next = NULL;
-        tmp_tasklist->prev = tasklist;
-        if(tasklist!=NULL){
-            tasklist->next = tmp_tasklist;
-        } 
-        tasklist = tmp_tasklist;
-        sem_post(&task_sem);
-        pthread_mutex_unlock(&task_mutex);
-        }
+            /* insert tmp_list to head of task list */ 
+            pthread_mutex_lock(&task_mutex);
+            tmp_tasklist->next = NULL;
+            tmp_tasklist->prev = tasklist;
+            if(tasklist!=NULL){
+                tasklist->next = tmp_tasklist;
+            } 
+            tasklist = tmp_tasklist;
+            sem_post(&task_sem);
+            pthread_mutex_unlock(&task_mutex);
+            }
         send(s, &acknowledge, sizeof(acknowledge), 0);
 
     }
@@ -390,7 +419,7 @@ void c_interact(void *thread_scl){
 
                 break;
             case 1:
-                printf("Adding new photo with id=%"PRIu64"\n", recv_task.photo_id);
+                printf("Adding new photo with name %s\n", recv_task.photo_name);
                 tmp_tasklist->task = recv_task;
                 /* add photo to photolist */
                 tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
@@ -462,11 +491,15 @@ void *id_socket(void *thread_s){
         update_peer(thread_s); //will start updating peer with the existing content
         return NULL;
     } else if( rmt_identifier == 2){ //peer joins the chain
-        /* only one pson thread is allowed per peer */
-        if(pson_thread != 0){
-            pthread_kill(pson_thread, SIGINT); //signal pson thread to stop
+        if(pson_run != 0){
+            printf("New pson, make other pson stop thread\n");
+            pson_run = 0;
+            sem_post(&task_sem);
+            void *retval;
+            pthread_join(pson_thread, &retval);
         }
         pson_thread = pthread_self();
+        pson_run = 1;
             
         pson_interact(thread_s);
         return NULL;
@@ -559,10 +592,13 @@ int main(){
     //initialize tasklist
     tasklist = NULL;
     pthread_mutex_init(&task_mutex, NULL);
+    pthread_mutex_init(&gw_mutex, NULL);
     sem_init(&task_sem, 0, 0); //initialize semaphore with value 0
     //initialize photolise
     photolist = NULL;
 
+	thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
+	thread_head = thread_list;
     //initiate new father peer interaction thread
     if( pthread_create(&(thread_list->thread_id) , NULL, pfather_interact, NULL) != 0)
 				printf("Error creating a new thread\n");
@@ -573,8 +609,6 @@ int main(){
 
     /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
 	rmt_addr_len = sizeof(struct sockaddr_in);
-	thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
-	thread_head = thread_list;
 	while(run){
 		if( (thread_list->s = accept(s, (struct sockaddr *) &rmt_addr, &rmt_addr_len)) != -1){
 
