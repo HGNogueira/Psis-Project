@@ -18,11 +18,14 @@
 #define CLIENT_SIDE_PORT 3000
 #define PEER_SIDE_PORT 3001
 
+/****** GLOBAL VARIABLES ********/
 int run = 1;
 int sc, sp; // client side and server side socked descriptors
 serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
 uint64_t photo_id = 0; /*photos id counter */
+int n_peers = 0;   /* number of total peers */
+/********************************/
 
 void sigint_handler(int n){
     close(sc);
@@ -61,6 +64,8 @@ int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
     retval = delete_peer(&servers, gw_msg->address, gw_msg->port, rwlock);
     if(retval == 1){
         printf("Found and successfully deleted peer\n");
+        n_peers --;
+        printf("Total number of peers is %d\n", n_peers);
     } else if(retval == 0){
         printf("No server to delete found in serverlist\n");
     } else if(retval == -1){
@@ -120,10 +125,16 @@ void *p_interact(void *rwlock){
 		addr_len = sizeof(rmt_addr);
 		recvfrom(sp, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &rmt_addr, &addr_len);
 		if(gw_msg.type == 1){ //contacted by peer
+            if(n_peers == 0){
+                ID = 0; //go back to ID=0 if all peers are gone
+            }
+            n_peers ++;
 			add_server(&servers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID, rwlock);
+
 			sendto(sp, &ID, sizeof(ID), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back ID information
 			ID++;
 			printf("New server available - addr=%s, port =%d\n", servers->address, servers->port);
+            printf("System contains %d peers total\n", n_peers);
 		} else if(gw_msg.type == 2){   //server lost 1 connection
 			if(!(tmp_node = search_server(&servers, gw_msg.ID, rwlock)))
 				printf("Can't find server in list\n");
