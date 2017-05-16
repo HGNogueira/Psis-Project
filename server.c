@@ -95,13 +95,13 @@ void *get_updated(void *thread_s){
 		if( (err = recv(s, &recv_task, sizeof(task_t), 0)) == -1){
 			perror("recv error");
             close(s);
-			return;
+			return NULL;
 		}
 		else if(err == 0){ //client disconnected
 			printf("Peer disconnected from this server while updating me...\n");
             printf("Updated status still not granted\n");
 			close(s);
-			return;
+			return NULL;
 		}
 		printf("Received new task from client\n");
         /* process new task */
@@ -215,7 +215,7 @@ void pson_interact(void *thread_s){
             close(s);
             return;
         }
-        if(acknowledge = -1){
+        if(acknowledge == -1){
             auxlist = auxlist->prev;
             continue;
         }
@@ -287,7 +287,7 @@ void *pfather_interact(void *dummy){
         if( (err = recv(s, &recv_task, sizeof(recv_task), 0)) == -1){
 			perror("recv error");
             close(s);
-			pthread_exit(NULL);
+            pfather_interact(NULL); //go back to trying to connect with new father
 		}
 		else if(err == 0){ //peer disconnected
 			printf("Father peer disconnected from this server\n");
@@ -299,9 +299,10 @@ void *pfather_interact(void *dummy){
 			close(s);
             recon = 1;              // this will be a reconnected peer for now on
             pfather_interact(NULL); //go back to trying to connect with new father
-			return;
+			return NULL;
 		}
         printf("New task from my father\n");
+        printf("ID = %d, type = %d\n", recv_task.ID, recv_task.type);
 
         acknowledge = 1; //in case recv_task.ID=ID I know I can go to next task
         /* only process task if this peer isn't the one responsible for it */
@@ -323,21 +324,20 @@ void *pfather_interact(void *dummy){
             switch(recv_task.type){
                 case -1:
                     printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
-                    tmp_tasklist->task = recv_task;
 
                     /* delete photo */
 
                     break;
                 case 0:
                     printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
-                    tmp_tasklist->task = recv_task;
+                    strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
 
                     /* add keyword to keyword list */
 
                     break;
                 case 1:
-                    printf("Adding new photo with id=%"PRIu64"\n", recv_task.photo_id);
-                    tmp_tasklist->task = recv_task;
+                    printf("Adding new photo with name=%s\n", recv_task.photo_name);
+                    strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
                     /* add photo to photolist */
                     tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
                     tmp_photolist->photo_id = recv_task.photo_id;
@@ -357,6 +357,11 @@ void *pfather_interact(void *dummy){
                     free(tmp_tasklist);
                     continue;
             }
+            /* copy task information */
+            tmp_tasklist->task.type = recv_task.type;
+            tmp_tasklist->task.ID = recv_task.ID;
+            tmp_tasklist->task.photo_id = recv_task.photo_id;
+
             /* insert tmp_list to head of task list */ 
             pthread_mutex_lock(&task_mutex);
             tmp_tasklist->next = NULL;
@@ -367,7 +372,7 @@ void *pfather_interact(void *dummy){
             tasklist = tmp_tasklist;
             sem_post(&task_sem);
             pthread_mutex_unlock(&task_mutex);
-            }
+        }
         send(s, &acknowledge, sizeof(acknowledge), 0);
 
     }
@@ -401,26 +406,28 @@ void c_interact(void *thread_scl){
 			return;
 		}
 		printf("Received new task from client\n");
+        printf("ID = %d, type = %d\n", recv_task.ID, recv_task.type);
+
         /* process new task */
         tmp_tasklist = (tasklist_t*) malloc(sizeof(tasklist_t));
         switch(recv_task.type){
             case -1:
                 printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
-                tmp_tasklist->task = recv_task;
 
                 /* delete photo */
 
                 break;
             case 0:
                 printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
-                tmp_tasklist->task = recv_task;
+                strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
 
                 /* add keyword to keyword list */
 
                 break;
             case 1:
                 printf("Adding new photo with name %s\n", recv_task.photo_name);
-                tmp_tasklist->task = recv_task;
+                strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
+
                 /* add photo to photolist */
                 tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
                 strcmp(tmp_photolist->photo_name, recv_task.photo_name);
@@ -450,10 +457,10 @@ void c_interact(void *thread_scl){
                 free(tmp_tasklist);
                 continue;
         }
-
-        /* insert task into task_list */
-        tmp_tasklist = (tasklist_t *) malloc(sizeof(tasklist_t));
+        /*copy task information */
+        tmp_tasklist->task.type = recv_task.type;
         tmp_tasklist->task.ID = ID;
+        tmp_tasklist->task.photo_id = recv_task.photo_id;
 
         /* insert tmp_list to head of task list */ 
         pthread_mutex_lock(&task_mutex);
