@@ -5,7 +5,6 @@ typedef struct node{
 	int port;
 	char address[50];
 	int nclients;
-    int updated; //indicates if peer is up to date
 	int ID;
     struct node *prev;
 	struct node *next;
