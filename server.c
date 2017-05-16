@@ -74,18 +74,23 @@ int is_task_new(task_t *task){
 void *get_updated(void *thread_s){
     int s = (int) *((int *) thread_s);
 	int err;
+    int acknowledge = 1;
     int photo_id;
     task_t recv_task;
     message_gw gw_msg;
     socklen_t addr_len;
     photolist_t *tmp_photolist;
-    tasklist_t *tmp_task, *current_node;
+    tasklist_t *tmp_tasklist, *current_node;
 
     pthread_mutex_lock(&task_mutex);
     if(tasklist == NULL){
-        /* create dummy task */
+        /* create dummy task, serves as a bridge between tasks to be seen as 
+         * previous and after update cycle */
         current_node = (tasklist_t *) malloc(sizeof(tasklist_t));
         current_node->task.type = -3; //indicates dummy task
+        current_node->prev = NULL;
+        current_node->next = NULL;
+        tasklist = current_node;
     }
     else
         current_node = tasklist;
@@ -94,21 +99,24 @@ void *get_updated(void *thread_s){
 	while(1){
 		if( (err = recv(s, &recv_task, sizeof(task_t), 0)) == -1){
 			perror("recv error");
-            close(s);
-			return NULL;
+            send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
 		}
 		else if(err == 0){ //client disconnected
 			printf("Peer disconnected from this server while updating me...\n");
-            printf("Updated status still not granted\n");
+            printf("I automatically become an up to date peer\n");
+            updated = 1;
+
 			close(s);
 			return NULL;
 		}
-		printf("Received new task from client\n");
+		printf("Received new task from Updator\n");
         /* process new task */
         switch(recv_task.type){
             case -2:
-                printf("Updating process has reached its end, changing my status to updated peer\n");
+                printf("Updating process has reached its end, I am up to date\n");
                 updated = 1;
+                close(s);
+                return NULL;
                 break;
             case -1:
                 printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
@@ -123,7 +131,7 @@ void *get_updated(void *thread_s){
 
                 break;
             case 1:
-                printf("Adding new photo with id=%"PRIu64"\n", recv_task.photo_id);
+                printf("Adding new photo with id=%s\n", recv_task.photo_name);
                 /* add photo to photolist */
                 tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
                 strcmp(tmp_photolist->photo_name, recv_task.photo_name);
@@ -137,8 +145,6 @@ void *get_updated(void *thread_s){
                 tmp_photolist->next = photolist;
                 photolist = tmp_photolist;
 
-
-
                 break;
             default:
                 printf("Strange task type (%d) while getting up to date... danger of unobtained synchronization...", recv_task.type);
@@ -147,13 +153,16 @@ void *get_updated(void *thread_s){
         /* add task to tasklist as previous task */
         /* no danger of missing guard, only one righting opposite sense
          * can only update if it isnt getting updated */
-        tmp_task = (tasklist_t *) malloc(sizeof(tasklist_t));
-        tmp_task->task = recv_task;
-        tmp_task->next = current_node;
-        tmp_task->prev = NULL;
-        current_node->prev = tmp_task;
-        current_node = tmp_task;
+        tmp_tasklist = (tasklist_t *) malloc(sizeof(tasklist_t));
+        tmp_tasklist->task.type = recv_task.type;
+        tmp_tasklist->task.ID = recv_task.ID;
 
+        tmp_tasklist->next = current_node;
+        tmp_tasklist->prev = NULL;
+        current_node->prev = tmp_tasklist;
+        current_node = tmp_tasklist;
+
+        send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
     }
 }
 
@@ -165,22 +174,24 @@ void update_peer(void *thread_s){
     tasklist_t *update_list;
     task_t termination_task;
 
+    pthread_mutex_lock(&task_mutex);
     update_list = tasklist;
+    pthread_mutex_unlock(&task_mutex);
 
     while(1){
-        if(update_list->task.type == -3){ //don't send dummy task
-            update_list = update_list->prev;
-            continue;
-        }
         /* if its the last item on tasklist */
         if(update_list == NULL){
-            termination_task.type = -2;
+            termination_task.type = -2; //updating process is over
             send(s, &termination_task, sizeof(task_t), 0);
             close(s);
             return;
         }
 
-        if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
+        if(update_list->task.type == -3){ //don't send dummy task
+            update_list = update_list->prev;
+            continue;
+        }
+              if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
                 perror("send error");
         }
         /* wait for acknowledge */
@@ -229,7 +240,8 @@ void pson_interact(void *thread_s){
 
     /* this thread function implements father-peer interaction */
 void *pfather_interact(void *dummy){
-    int s, fatherpeer = 2;
+    int s, s_up; //socket s for father, s_up for update
+    int fatherpeer = 2, updatepeer = 1; //constants to contact father and updator
     int err;
     message_gw gw_msg;
     socklen_t addr_len;
@@ -253,29 +265,45 @@ void *pfather_interact(void *dummy){
     peer_addr.sin_port = htons(gw_msg.port);
 	inet_aton(gw_msg.address, &peer_addr.sin_addr);
 
-    /*
-    if(updated = 0){
+    if(updated == 0){
+        printf("Contacting father in order to get updated\n");
+        if(  (s_up = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
+            perror("Update socket");
+            exit(EXIT_FAILURE);
+        }
+
+        if( connect(s_up, (const struct sockaddr *) &peer_addr, sizeof(struct sockaddr_in)) == -1){
+            gw_msg.type = -1;
+            sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
+            perror("Update connect");
+            pfather_interact(NULL); //go back to trying to connect with new father
+        }
+        send(s_up, &updatepeer, sizeof(updatepeer), 0);
+
+
+
         //initiate new father peer interaction thread MISSING GUARD######
-        
         thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
         thread_head = thread_list;
-
-        if( pthread_create(&(thread_list->thread_id) , NULL, get_updated, &(thread_list->s)) != 0)
-                    printf("Error creating a new thread\n");
+        thread_list->s = s_up;
+        if( pthread_create(&(thread_list->thread_id) , NULL, get_updated, &(thread_list->s)) != 0){
+            printf("Error creating a new thread\n");
+        }
 
         thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
+        //### MISSING GUARD
     }
-    */
+
 
 	if(  (s = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
-		perror("Father socket");
+		perror("father socket");
 		exit(EXIT_FAILURE);
 	}
 
     if( connect(s, (const struct sockaddr *) &peer_addr, sizeof(struct sockaddr_in)) == -1){
         gw_msg.type = -1;
         sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
-        perror("Father connect");
+        perror("father connect");
         pfather_interact(NULL); //go back to trying to connect with new father
         exit(EXIT_FAILURE);
     }
@@ -483,7 +511,7 @@ void *id_socket(void *thread_s){
     int s = (int) *( (int *) thread_s);
 
     if( (err = recv(s, &rmt_identifier, sizeof(rmt_identifier), 0)) == -1){
-			perror("recv error");
+			perror("id_socket: recv error");
 			pthread_exit(NULL);
     } else if(err == 0){ //client disconnected
 			printf("Unidentified remote connection disconnected from this peer\n");
@@ -595,6 +623,9 @@ int main(){
 	addr_len = sizeof(gw_addr);
 	recvfrom(s_gw, &ID, sizeof(ID), 0, (struct sockaddr *) &gw_addr, &addr_len);
 	printf("I was assign ID=%d\n", ID);
+
+    if(ID == 0) // am the first server again
+        updated = 1;
 
     //initialize tasklist
     tasklist = NULL;
