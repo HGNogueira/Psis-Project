@@ -46,6 +46,7 @@ typedef struct task_node{
 /****************** GLOBAL VARIABLES ******************************************/
 int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
 pthread_mutex_t gw_mutex;      
+pthread_mutex_t thread_mutex;
 struct sockaddr_in gw_addr;
 int ID;            //identificador de servidor atribuido pela gateway
 int updated = 0;   //identifica se peer já foi updated à cadeia de transferêcia de info
@@ -98,18 +99,20 @@ void *get_updated(void *thread_s){
 
 	while(1){
 		if( (err = recv(s, &recv_task, sizeof(task_t), 0)) == -1){
-			perror("recv error");
+			perror("get_update: recv error");
             send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
+            continue;
 		}
 		else if(err == 0){ //client disconnected
 			printf("Peer disconnected from this server while updating me...\n");
             printf("I automatically become an up to date peer\n");
             updated = 1;
 
-			close(s);
+			//close(s);
 			return NULL;
 		}
 		printf("Received new task from Updator\n");
+        tmp_tasklist = (tasklist_t *) malloc(sizeof(tasklist_t));
         /* process new task */
         switch(recv_task.type){
             case -2:
@@ -131,7 +134,7 @@ void *get_updated(void *thread_s){
 
                 break;
             case 1:
-                printf("Adding new photo with id=%s\n", recv_task.photo_name);
+                printf("Adding new photo with name=%s\n", recv_task.photo_name);
                 /* add photo to photolist */
                 tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
                 strcmp(tmp_photolist->photo_name, recv_task.photo_name);
@@ -139,6 +142,8 @@ void *get_updated(void *thread_s){
                 tmp_photolist->exists = 0;
                 tmp_photolist->deleted = 0;
                 tmp_photolist->photo_id = recv_task.photo_id;
+
+                strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
 
                 /* add photo to photolist */
                 /*######### NEED PHOTOLIST GUARD #######*/
@@ -148,12 +153,12 @@ void *get_updated(void *thread_s){
                 break;
             default:
                 printf("Strange task type (%d) while getting up to date... danger of unobtained synchronization...", recv_task.type);
+                free(tmp_tasklist);
                 continue;
         }
         /* add task to tasklist as previous task */
         /* no danger of missing guard, only one righting opposite sense
          * can only update if it isnt getting updated */
-        tmp_tasklist = (tasklist_t *) malloc(sizeof(tasklist_t));
         tmp_tasklist->task.type = recv_task.type;
         tmp_tasklist->task.ID = recv_task.ID;
 
@@ -191,7 +196,7 @@ void update_peer(void *thread_s){
             update_list = update_list->prev;
             continue;
         }
-              if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
+        if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
                 perror("send error");
         }
         /* wait for acknowledge */
@@ -283,6 +288,8 @@ void *pfather_interact(void *dummy){
 
 
         //initiate new father peer interaction thread MISSING GUARD######
+
+        pthread_mutex_lock(&thread_mutex);
         thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
         thread_head = thread_list;
         thread_list->s = s_up;
@@ -291,7 +298,7 @@ void *pfather_interact(void *dummy){
         }
 
         thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
-        //### MISSING GUARD
+        pthread_mutex_unlock(&thread_mutex);
     }
 
 
@@ -546,7 +553,7 @@ void *id_socket(void *thread_s){
 }
 
 int main(){
-	int s, srmt, err;
+	int s, srmt, err, aux_s;
 	FILE *f;
 	struct sockaddr_in srv_addr;
 	struct sockaddr_in rmt_addr;
@@ -635,6 +642,8 @@ int main(){
     //initialize photolise
     photolist = NULL;
 
+    pthread_mutex_init(&thread_mutex, NULL);
+    pthread_mutex_lock(&thread_mutex);
 	thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
 	thread_head = thread_list;
     //initiate new father peer interaction thread
@@ -643,12 +652,15 @@ int main(){
 
     thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
     thread_list = thread_list->next;
+    pthread_mutex_unlock(&thread_mutex);
 
 
     /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
 	rmt_addr_len = sizeof(struct sockaddr_in);
 	while(run){
-		if( (thread_list->s = accept(s, (struct sockaddr *) &rmt_addr, &rmt_addr_len)) != -1){
+		if( (aux_s = accept(s, (struct sockaddr *) &rmt_addr, &rmt_addr_len)) != -1){
+            pthread_mutex_lock(&thread_mutex);
+            thread_list->s = aux_s;
 
             //initiate thread to identify and proceed with interaction
 			if( pthread_create(&(thread_list->thread_id) , NULL, id_socket, &(thread_list->s)) != 0)
@@ -657,6 +669,7 @@ int main(){
 
 			thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
 			thread_list = thread_list->next;
+            pthread_mutex_unlock(&thread_mutex);
 		} else{
 			perror("accept");
 			//exit(EXIT_FAILURE):  //não sair para não interromper restantes threads
