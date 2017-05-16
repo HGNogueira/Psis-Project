@@ -26,12 +26,12 @@ void add_server(serverlist **peers, char *address, int port, int ID, pthread_rwl
         newnode->prev = newnode; //previous node is itself
         newnode->next = newnode; //next node is itself
         *peers = newnode;
-    } else{
-        auxnode = (*peers)->next;
-        newnode->next = auxnode;
-        auxnode->prev = newnode;
-        newnode->prev = (*peers);
-        (*peers)->next = newnode;
+    } else{ //insert before list head
+        auxnode = (*peers)->prev;
+        newnode->prev = auxnode;
+        auxnode->next = newnode;
+        newnode->next = (*peers);
+        (*peers)->prev = newnode;
     }//*server keeps pointing to the same node
     pthread_rwlock_unlock(rwlock);
 
@@ -87,6 +87,9 @@ int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *r
 	while(1){
 		if( strcmp(s1->address, address) == 0){
             if( s1->port == port){
+                if(s1 == *peers){  
+                    *peers = s1->next;
+                }
                 (s1->prev)->next = s1->next;
                 (s1->next)->prev = s1->prev;
                 free(s1);
@@ -95,7 +98,8 @@ int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *r
             }
 
         }
-        if(s1->next->ID == startID)
+
+        if(s1->next->ID == startID) //looped list has been searched
             break;
 		s1 = s1->next;
 	}
