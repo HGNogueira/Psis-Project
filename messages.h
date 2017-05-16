@@ -61,6 +61,5 @@ struct task{
     uint64_t photo_id;   //corresponds to the filename
     char photo_name[50]; //corresponds to the filename to save photo
     char keyword[50];    //added keyword or lookup keyword
-    int delete;
     unsigned photo_size;
 };
