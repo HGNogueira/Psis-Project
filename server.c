@@ -96,7 +96,7 @@ void *get_updated(void *thread_s){
             send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
             continue;
 		}
-		else if(err == 0){ //client disconnected
+		else if(err == 0){ //updator disconnected
 			printf("Peer disconnected from this server while updating me...\n");
             printf("I automatically become an up to date peer\n");
             updated = 1;
@@ -167,13 +167,15 @@ void update_peer(void *thread_s){
     pthread_mutex_unlock(&task_mutex);
 
     while(1){
-        /* if its the last item on tasklist */
         if(update_list == NULL){
             termination_task.type = -2; //updating process is over
             send(s, &termination_task, sizeof(task_t), 0);
+            printf("Finished updating son\n");
             close(s);
             return;
         }
+        /* if its the last item on tasklist */
+        printf("photoname %s\n", update_list->task.photo_name);
 
         if(update_list->task.type == -3){ //don't send dummy task
             update_list = update_list->prev;
@@ -184,6 +186,7 @@ void update_peer(void *thread_s){
         }
         /* wait for acknowledge */
         if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
+            printf("Lost connection with son while updating\n");
             close(s);
             return;
         }
@@ -191,6 +194,7 @@ void update_peer(void *thread_s){
         /* remain trying to send the same task if acknowledge != 1 */
         if(acknowledge == 1)
             update_list = update_list->prev;
+        sleep(1);
     }
 
 }
@@ -618,7 +622,6 @@ int main(){
     thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
     thread_list = thread_list->next;
     pthread_mutex_unlock(&thread_mutex);
-
 
     /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
 	rmt_addr_len = sizeof(struct sockaddr_in);
