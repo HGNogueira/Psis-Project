@@ -1,3 +1,25 @@
+/** @file gateway.c */
+
+/*! \var int run
+ * \brief Não Utilizada?
+ */
+
+/*! \var int sc
+* \brief Client side socket descriptor
+*/
+
+/*! \var int sp
+* \brief Server side socket descriptor
+*/
+
+/*! \var serverlist servers
+* \brief Linked list of servers
+*/
+
+/*! \var int ID
+* \brief Server ID counter
+*/
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -15,15 +37,29 @@
 #include "messages.h"
 #include "serverlist.h"
 
+/**
+* \def CLIENT_SIDE_PORT
+* \brief  Client side port
+*/
+
+/**
+* \def PEER_SIDE_PORT
+* \brief  Peer side port
+*/
+*
 #define CLIENT_SIDE_PORT 3000
 #define PEER_SIDE_PORT 3001
 
 int run = 1;
-int sc, sp; // client side and server side socked descriptors
+int sc, sp; // client side and server side socket descriptors
 serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
-uint64_t photo_id = 0; /*photos id counter */
+uint64_t photo_id = 0; /*photos id counter 
 
+/*! \fn void sigint_handler(int n)
+    \brief Signal to close the \a gateway
+    \param n PAKÉISTO?.
+*/
 void sigint_handler(int n){
     close(sc);
     close(sp);
@@ -31,13 +67,17 @@ void sigint_handler(int n){
     exit(EXIT_SUCCESS);
 }
 
-/* attempt to connect to server and confirm if it is dead */
-int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
+/*! \fn check_and_update_peer(message_gw *gw_msg, pthread_mutex_t *list_key)
+    \brief Attempt to connect to server and confirm
+     if it is dead
+    \param gw_msg
+    \param list_key
+*/
     struct sockaddr_in srv_addr;
     int s, sgw;
     int retval;
 
-    if(  (s = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
+    if((s = socket(AF_INET, SOCK_STREAM, 0))==-1){
 		perror("socket");
 		exit(EXIT_FAILURE);
 	}
@@ -46,7 +86,7 @@ int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
 	srv_addr.sin_port = htons(gw_msg->port);
 	inet_aton(gw_msg->address, &srv_addr.sin_addr);
 
-	if( (sgw = connect(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in))) == 0){
+	if((sgw = connect(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in))) == 0){
 		printf("Server is still alive\n");
         close(sgw);
         close(s);
@@ -64,12 +104,16 @@ int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
     }
 
     close(sgw);
-    close(s); 
+    close(s);
     return 0;
 }
 
-/* thread that interacts with client requests, receives socket descriptor */
-void *c_interact(void *rwlock){
+
+/*! \fn void *c_interact(void *list_key)
+    \brief Thread that interacts with client requests, receives socket descriptor
+    \param list_key
+*/
+void *c_interact(void *list_key){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
@@ -106,8 +150,11 @@ void *c_interact(void *rwlock){
 	}
 }
 
-/* thread that interacts with peer requests, receives socket descriptor */
-void *p_interact(void *rwlock){
+/*! \fn void *p_interact(void *list_key)
+    \brief Thread that interacts with peer requests, receives socket descriptor
+    \param list_key
+*/
+void *p_interact(void *list_key){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
@@ -157,24 +204,25 @@ int main(){
 	act_INT.sa_flags=0;
 	sigaction(SIGINT, &act_INT, NULL);
 /****** SIGNAL MANAGEMENT ******/
-        
+
 	servers = init_server();  // initialize server list
 
 /****** INITIALIZE client side socket ******/
 	gwc_addr.sin_family = AF_INET;
 	gwc_addr.sin_port = htons(CLIENT_SIDE_PORT);
 	gwc_addr.sin_addr.s_addr = INADDR_ANY;
-	
-	if( (sc=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
+
+	if((sc=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
 		perror("socket error");
 		exit(EXIT_FAILURE);
 	}
-	
-	if( (bind(sc, (const struct sockaddr *) &gwc_addr, sizeof(gwc_addr))) == -1){
+
+	if((bind(sc, (const struct sockaddr *) &gwc_addr, sizeof(gwc_addr))) == -1){
 		perror("bind error");
 		exit(EXIT_FAILURE);
 	}
-    if( pthread_create(&client_side, NULL, c_interact, &rwlock) != 0){
+
+  if( pthread_create(&client_side, NULL, c_interact, &rwlock) != 0){
 				printf("Error creating a new thread\n");
                 exit(EXIT_FAILURE);
     }
@@ -183,22 +231,22 @@ int main(){
 	gwp_addr.sin_family = AF_INET;
 	gwp_addr.sin_port = htons(PEER_SIDE_PORT);
 	gwp_addr.sin_addr.s_addr = INADDR_ANY;
-	
-	if( (sp=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
+
+	if((sp=socket(AF_INET, SOCK_DGRAM, 0)) == -1){
 		perror("socket error");
 		exit(EXIT_FAILURE);
 	}
-	
-	if( (bind(sp, (const struct sockaddr *) &gwp_addr, sizeof(gwp_addr))) == -1){
+
+	if((bind(sp, (const struct sockaddr *) &gwp_addr, sizeof(gwp_addr))) == -1){
 		perror("bind error");
 		exit(EXIT_FAILURE);
 	}
 
-    if( pthread_create(&peer_side, NULL, p_interact, &rwlock) != 0){
-				printf("Error creating a new thread\n");
-                exit(EXIT_FAILURE);
-    }
-    
+  if( pthread_create(&peer_side, NULL, p_interact, &rwlock) != 0){
+		printf("Error creating a new thread\n");
+      exit(EXIT_FAILURE);
+   }
+
 /****** END OF EXECUTION ********/
     pause(); //pause indefinately until SIGINIT
 }

@@ -23,6 +23,7 @@ serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock){
 
 	s1 = *peers;
 	s2 = *peers;
+
 	while(s1->next){
 		if(s2->nclients > s1->next->nclients){
 			s2 = s1->next;
@@ -56,7 +57,7 @@ void add_server(serverlist **servers, char *address, int port, int ID, pthread_r
 int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *rwlock){
 	struct node *s1, *s2;
     
-    pthread_rwlock_rdlock(rwlock);
+pthread_rwlock_rdlock(rwlock);
 	s1 = *peers;
 	if(s1 == NULL)
 		return -1;
@@ -92,8 +93,8 @@ int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *r
 
 serverlist *search_server(serverlist **servers, int ID, pthread_rwlock_t *rwlock){
 	struct node *s;
-    
-    pthread_rwlock_rdlock(rwlock);
+  
+pthread_rwlock_rdlock(rwlock);
 	s = *servers;
 	if(s == NULL){
         pthread_rwlock_unlock(rwlock);

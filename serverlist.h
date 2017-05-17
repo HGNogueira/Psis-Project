@@ -17,4 +17,3 @@ serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock);//choose s
 void add_server(serverlist **peers, char *address, int port, int ID, pthread_rwlock_t *rwlock);
 int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *rwlock);
 serverlist *search_server(serverlist **peers, int ID, pthread_rwlock_t *rwlock);
-

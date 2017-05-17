@@ -1,8 +1,8 @@
 /*
  *  File name: clientAPI.h
- *  
- *  Description: This file describes the interface 
- *  API to be used by client programs in order to comunicate and 
+ *
+ *  Description: This file describes the interface
+ *  API to be used by client programs in order to comunicate and
  *  interact with distributed server system (Psis Project)
  *
  */
@@ -25,10 +25,10 @@
  *
  *  Return value:
  *      void
- *    
+ *
  */
 void update_peer_loss();
- 
+
 
 
 /*
@@ -36,7 +36,7 @@ void update_peer_loss();
  *    gallery_connect
  *
  *  Description:
- *    connects client to one Peer. Must be called before attempting other 
+ *    connects client to one Peer. Must be called before attempting other
  *    client-server interactions.
  *
  *  Arguments:
@@ -47,7 +47,7 @@ void update_peer_loss();
  *    socket descriptor in case of success.
  *    -1 if gateway cannot be accessed
  *    0 if no servers are available
- *    
+ *
  */
 int gallery_connect(char *host, in_port_t port);
 
