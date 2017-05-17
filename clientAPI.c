@@ -183,8 +183,8 @@ int gallery_add_keyword(int peer_socket, uint32_t id_photo, char *keyword){
  *
  *  Return value:
  *    positive integer corresponding to the number of found photos
- *     0 if no photo contains the provided keyword
- *     -1 if a error occurred
+ *    0 if no photo contains the provided keyword
+ *    -1 if a error occurred
  */
 
 int gallery_search_photo(int peer_socket, char * keyword, uint32_t ** id_photos){
