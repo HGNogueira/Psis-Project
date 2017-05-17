@@ -65,6 +65,11 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
                     searchnode = searchnode->prev;
                 }else{
                     searchnode = *photos; //searchnode = list start
+                    auxphoto->next = searchnode;
+                    searchnode->prev = auxphoto;
+                    *photos = auxphoto;
+                    pthread_rwlock_unlock(rwlock);
+                    return 0;
                 }
             }
 
