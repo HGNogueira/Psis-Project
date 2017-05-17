@@ -30,6 +30,8 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     pthread_rwlock_wrlock(rwlock);
     if(*photos == NULL){
         *photos = auxphoto;
+        pthread_rwlock_unlock(rwlock);
+        return 0;
     }
     pthread_rwlock_unlock(rwlock);
 
@@ -38,8 +40,10 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     while(searchnode->next != NULL){
         if(searchnode->photo_id == photo_id){ //ID already in the list
             if(searchnode->deleted == 1){
+                pthread_rwlock_unlock(rwlock);
                 return -1;
             }
+            pthread_rwlock_unlock(rwlock);
             return 1;
         }
         if(searchnode->photo_id > photo_id){ //passed photo_id, insert in previous
@@ -54,8 +58,14 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
                 return retval;
 
             }
-            while(searchnode->photo_id > photo_id){
-                searchnode = searchnode->prev;
+            while(1){
+                if(searchnode != NULL){
+                    if(searchnode->photo_id < photo_id)
+                        break;
+                    searchnode = searchnode->prev;
+                }else{
+                    searchnode = *photos; //searchnode = list start
+                }
             }
 
             auxphoto->prev = searchnode;
@@ -85,17 +95,17 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     while(searchnode->next != NULL){
         if(searchnode->photo_id == photo_id){
             if(searchnode->deleted == 1){
+                pthread_rwlock_unlock(rwlock);
                 return -1;
             }
+            pthread_rwlock_unlock(rwlock);
             //other thread already inserted it
             return 1;
         }
         if(searchnode->photo_id > photo_id){ //passed photo_id, insert in previous
-            searchnode = searchnode->prev;
-            auxphoto->prev = searchnode;
-            auxphoto->next = searchnode->next;
-            (searchnode->next)->prev = auxphoto;
-            searchnode->next = auxphoto;
+            auxphoto->prev = searchnode->prev;
+            auxphoto->next = searchnode;
+            searchnode->prev = auxphoto;
             //photo correctly inserted between ID's
             pthread_rwlock_unlock(rwlock);
             return 0;
@@ -103,11 +113,9 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
         searchnode = searchnode->next;
     }
     if(searchnode->photo_id > photo_id){//insert in previous
-        searchnode = searchnode->prev;
-        auxphoto->prev = searchnode;
-        auxphoto->next = searchnode->next;
-        (searchnode->next)->prev = auxphoto;
-        searchnode->next = auxphoto;
+        auxphoto->prev = searchnode->prev;
+        auxphoto->next = searchnode;
+        searchnode->prev = auxphoto;
         //photo correctly inserted between ID's
         pthread_rwlock_unlock(rwlock);
         return 0;
