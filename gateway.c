@@ -46,7 +46,7 @@
 * \def PEER_SIDE_PORT
 * \brief  Peer side port
 */
-*
+
 #define CLIENT_SIDE_PORT 3000
 #define PEER_SIDE_PORT 3001
 
@@ -54,7 +54,7 @@ int run = 1;
 int sc, sp; // client side and server side socket descriptors
 serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
-uint64_t photo_id = 0; /*photos id counter 
+uint64_t photo_id = 0; /*photos id counter
 
 /*! \fn void sigint_handler(int n)
     \brief Signal to close the \a gateway
@@ -73,6 +73,7 @@ void sigint_handler(int n){
     \param gw_msg
     \param list_key
 */
+int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
     struct sockaddr_in srv_addr;
     int s, sgw;
     int retval;
@@ -113,7 +114,7 @@ void sigint_handler(int n){
     \brief Thread that interacts with client requests, receives socket descriptor
     \param list_key
 */
-void *c_interact(void *list_key){
+void *c_interact(void *rwlock){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
@@ -154,7 +155,7 @@ void *c_interact(void *list_key){
     \brief Thread that interacts with peer requests, receives socket descriptor
     \param list_key
 */
-void *p_interact(void *list_key){
+void *p_interact(void *rwlock){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;

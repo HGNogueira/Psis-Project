@@ -25,7 +25,7 @@ int main(){
     message_gw gw_msg;
 	message rmsg;
 	message smsg;
-		
+
 	/****** CONTACT GATEWAY ******/
     port_s = htons(GATE_PORT);
     s = gallery_connect(GATE_ADDR, port_s);
@@ -39,7 +39,7 @@ int main(){
     }
 
 
-	
+
 	while(1){  /* interaction */
 		fgets(scanned, MESSAGE_LEN, stdin);
 		strcpy(smsg.buffer, scanned);

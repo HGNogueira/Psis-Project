@@ -28,7 +28,7 @@ typedef struct task{
     int type;
     uint64_t photo_id;
     char keyword[50]; //added keyword
-    task *next;
+    struct task *next;
 } task;
 
 struct pthread_node{
