@@ -69,6 +69,7 @@ int gallery_connect(char *host, in_port_t port){
     int s_gw, s, scl;
 	socklen_t size_addr;
     message_gw gw_msg;
+    int wait_time = 1;
 
     /****** CONTACT GATEWAY ******/
 	gw_addr.sin_family = AF_INET;
@@ -81,16 +82,25 @@ int gallery_connect(char *host, in_port_t port){
 	}
 	gw_msg.type = 0; /* type indicates client trying to establish connection */
 
-	if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
-		perror("GW contact");
-	}
+    if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){ 
+            perror("GW contact"); 
+    }
 	/****** GATEWAY CONTACT ESTABLISHED *****/
 
     size_addr = sizeof(struct sockaddr_in);
-    sleep(1);
-	if( recvfrom(s_gw, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &gw_addr, &size_addr) == -1){
-        close(s_gw);
-        return -1;
+    while(1){
+        sleep(wait_time);
+        if( recvfrom(s_gw, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &gw_addr, &size_addr) == -1){
+            printf("Gateway not responding... waiting\n");
+            wait_time ++;
+            if(wait_time == 5){
+                close(s_gw);
+                return -1;
+            }
+        }
+        else{
+            break;
+        }
     }
     close(s_gw);
 

@@ -29,3 +29,9 @@ typedef struct message{
     char buffer[MESSAGE_LEN];
     int  warning;
 } message;
+
+typedef struct photo{
+    uint32_t photo_id;
+    char photo_name[50];
+    uint64_t photo_size;
+} photo;
