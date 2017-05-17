@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include "photolist.h"
 #include "messages.h"
 #define S_PORT 3001
 
@@ -24,16 +25,6 @@ struct pthread_node{
 	int s;
 	struct pthread_node *next;
 };
-
-    /* list of photos, includes extra information for peer replication purposes */
-typedef struct photo_node{
-    uint32_t photo_id;
-    char photo_name[50];
-    unsigned photo_size;
-    int exists; //indicates if photo exists within database or still mereley information about it
-    int deleted; //indicates if photo has been deleted
-    struct photo_node *next;
-} photolist_t;
 
 typedef struct task_node{
     task_t task;
@@ -47,13 +38,14 @@ typedef struct task_node{
 int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
 pthread_mutex_t gw_mutex;      
 pthread_mutex_t thread_mutex;
+pthread_mutex_t task_mutex;
+pthread_rwlock_t photolock;
 struct sockaddr_in gw_addr;
 int ID;            //identificador de servidor atribuido pela gateway
 int updated = 0;   //identifica se peer já foi updated à cadeia de transferêcia de info
 struct pthread_node *thread_list, *thread_head;  //lista de threads
 tasklist_t *tasklist;
 photolist_t *photolist;
-pthread_mutex_t task_mutex;
 sem_t task_sem;
 int recon = 0;    //indicates if peer comes from a broken connection or is first time connecting
 int pson_run = 0;
@@ -76,6 +68,7 @@ void *get_updated(void *thread_s){
     int s = (int) *((int *) thread_s);
 	int err;
     int acknowledge = 1;
+    int retval;
     int photo_id;
     task_t recv_task;
     message_gw gw_msg;
@@ -136,19 +129,9 @@ void *get_updated(void *thread_s){
             case 1:
                 printf("Adding new photo with name=%s\n", recv_task.photo_name);
                 /* add photo to photolist */
-                tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
-                strcmp(tmp_photolist->photo_name, recv_task.photo_name);
-                tmp_photolist->photo_size = recv_task.photo_size;
-                tmp_photolist->exists = 0;
-                tmp_photolist->deleted = 0;
-                tmp_photolist->photo_id = recv_task.photo_id;
+                retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
 
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
-
-                /* add photo to photolist */
-                /*######### NEED PHOTOLIST GUARD #######*/
-                tmp_photolist->next = photolist;
-                photolist = tmp_photolist;
 
                 break;
             default:
@@ -247,6 +230,7 @@ void pson_interact(void *thread_s){
 void *pfather_interact(void *dummy){
     int s, s_up; //socket s for father, s_up for update
     int fatherpeer = 2, updatepeer = 1; //constants to contact father and updator
+    int retval;
     int err;
     message_gw gw_msg;
     socklen_t addr_len;
@@ -374,17 +358,7 @@ void *pfather_interact(void *dummy){
                     printf("Adding new photo with name=%s\n", recv_task.photo_name);
                     strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
                     /* add photo to photolist */
-                    tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
-                    tmp_photolist->photo_id = recv_task.photo_id;
-                    strcmp(tmp_photolist->photo_name, recv_task.photo_name);
-                    tmp_photolist->photo_size = recv_task.photo_size;
-                    tmp_photolist->exists = 0;
-                    tmp_photolist->deleted = 0;
-
-                    /*######### NEED PHOTOLIST GUARD #######*/
-                    tmp_photolist->next = photolist;
-                    photolist = tmp_photolist;
-
+                    retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
 
                     break;
                 default:
@@ -417,6 +391,7 @@ void *pfather_interact(void *dummy){
 void c_interact(void *thread_scl){
 	int scl = (int) *((int *) thread_scl);
 	int err;
+    int retval;
     int photo_id;
     task_t recv_task;
     message_gw gw_msg;
@@ -463,13 +438,6 @@ void c_interact(void *thread_scl){
                 printf("Adding new photo with name %s\n", recv_task.photo_name);
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
 
-                /* add photo to photolist */
-                tmp_photolist = (photolist_t*) malloc(sizeof(photolist_t));
-                strcmp(tmp_photolist->photo_name, recv_task.photo_name);
-                tmp_photolist->photo_size = recv_task.photo_size;
-                tmp_photolist->exists = 0;
-                tmp_photolist->deleted = 0;
-
                 /* ask for photo_id from gateway */
                 gw_msg.type = 4;
                 gw_msg.ID = ID;
@@ -479,12 +447,8 @@ void c_interact(void *thread_scl){
                 recvfrom(s_gw, &photo_id, sizeof(photo_id), 0, (struct sockaddr *) &gw_addr, &addr_len);
 
                 recv_task.photo_id = photo_id;
-                tmp_photolist->photo_id = photo_id;
-
                 /* add photo to photolist */
-                /*######### NEED PHOTOLIST GUARD #######*/
-                tmp_photolist->next = photolist;
-                photolist = tmp_photolist;
+                retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
 
                 break;
             default:
@@ -639,8 +603,9 @@ int main(){
     pthread_mutex_init(&task_mutex, NULL);
     pthread_mutex_init(&gw_mutex, NULL);
     sem_init(&task_sem, 0, 0); //initialize semaphore with value 0
-    //initialize photolise
-    photolist = NULL;
+    //initialize photolist
+    photolist = photolist_init(); 
+    pthread_rwlock_init(&photolock, NULL);
 
     pthread_mutex_init(&thread_mutex, NULL);
     pthread_mutex_lock(&thread_mutex);
