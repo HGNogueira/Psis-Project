@@ -61,10 +61,9 @@ int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
 	}
 
     printf("Server with address:%s and port %d stopped working\n", gw_msg->address, gw_msg->port);
-    retval = delete_peer(&servers, gw_msg->address, gw_msg->port, rwlock);
+    retval = delete_peer(&servers, &n_peers, gw_msg->address, gw_msg->port, rwlock);
     if(retval == 1){
         printf("Found and successfully deleted peer\n");
-        n_peers --;
         printf("Total number of peers is %d\n", n_peers);
     } else if(retval == 0){
         printf("No server to delete found in serverlist\n");
@@ -117,6 +116,7 @@ void *c_interact(void *rwlock){
 /* thread that interacts with peer requests, receives socket descriptor */
 void *p_interact(void *rwlock){
     socklen_t addr_len;
+    int retval;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
     message_gw gw_msg;
@@ -125,11 +125,10 @@ void *p_interact(void *rwlock){
 		addr_len = sizeof(rmt_addr);
 		recvfrom(sp, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &rmt_addr, &addr_len);
 		if(gw_msg.type == 1){ //contacted by peer
-            if(n_peers == 0){
+			retval = add_server(&servers, &n_peers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID, rwlock);
+            if(retval == 1){ /* guaranteed its the first server */
                 ID = 0; //go back to ID=0 if all peers are gone
             }
-            n_peers ++;
-			add_server(&servers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID, rwlock);
 
 			sendto(sp, &ID, sizeof(ID), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back ID information
 			ID++;
