@@ -47,7 +47,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
             return 1;
         }
         if(searchnode->photo_id > photo_id){ //passed photo_id, insert in previous
-            pthread_rwlock_unlock(rwlock);
+            pthread_rwlock_unlock(rwlock); //go from rwlock to wrlock
             // something might happen here, will check again
             pthread_rwlock_wrlock(rwlock);
             if(searchnode == NULL){//someone deleted this photo meanwhile
@@ -60,8 +60,15 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
             }
             while(1){
                 if(searchnode != NULL){
-                    if(searchnode->photo_id < photo_id)
-                        break;
+                    if(searchnode->photo_id < photo_id){
+                        auxphoto->prev = searchnode;
+                        auxphoto->next = searchnode->next;
+                        (searchnode->next)->prev = auxphoto;
+                        searchnode->next = auxphoto;
+                        //photo correctly inserted between ID's
+                        pthread_rwlock_unlock(rwlock);
+                        return 0;
+                    }
                     searchnode = searchnode->prev;
                 }else{
                     searchnode = *photos; //searchnode = list start
@@ -72,15 +79,6 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
                     return 0;
                 }
             }
-
-            auxphoto->prev = searchnode;
-            auxphoto->next = searchnode->next;
-            (searchnode->next)->prev = auxphoto;
-            searchnode->next = auxphoto;
-            //photo correctly inserted between ID's
-            pthread_rwlock_unlock(rwlock);
-            return 0;
-            
         }
         searchnode = searchnode->next;
     }
@@ -132,4 +130,10 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
         pthread_rwlock_unlock(rwlock);
         return 0;
     }
+}
+
+    /* returns 0 if success, -1 if can't find photo, 1 if already deleted */
+int photolist_delete(photolist_t **photos, uint32_t photo_id, char *photo_name, unsigned photo_size, pthread_rwlock_t *rwlock){
+
+
 }
