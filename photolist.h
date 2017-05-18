@@ -24,6 +24,5 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, char *photo_name, 
 
 
 void photolist_add_keyword(photolist_t **photos, char *keyword, pthread_rwlock_t *rwlock);
-int photolist_delete(photolist_t **photos, pthread_rwlock_t *rwlock);
 int photolist_search(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *rwlock);
 
