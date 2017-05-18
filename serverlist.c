@@ -11,9 +11,10 @@ serverlist *init_server(){
 	return NULL;
 }
 
-
-void add_server(serverlist **peers, char *address, int port, int ID, pthread_rwlock_t *rwlock){
+    /* return 1 if its the first server */
+int add_server(serverlist **peers, int *n_peers, char *address, int port, int ID, pthread_rwlock_t *rwlock){
 	serverlist *newnode, *auxnode;
+    int retval = 0;
 
 	newnode = (serverlist *) malloc(sizeof(serverlist));
 	strcpy(newnode->address, address);
@@ -33,10 +34,12 @@ void add_server(serverlist **peers, char *address, int port, int ID, pthread_rwl
         newnode->next = (*peers);
         (*peers)->prev = newnode;
     }//*server keeps pointing to the same node
+    *n_peers++;
+    if(*n_peers == 1)/* first server on the list */
+        retval = 1;
     pthread_rwlock_unlock(rwlock);
-
     
-    return;
+    return retval;
 }
 
 /* função que escolhe servidor com menos carga */
@@ -68,7 +71,7 @@ serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock){
 
 /* searches serverlist and deletes node, if not found 0 is returned, if serverlist empty -1
  * is returned, if success 1 is returned */
-int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *rwlock){
+int delete_peer(serverlist **peers, int *n_peers, char *address, int port, pthread_rwlock_t *rwlock){
 	struct node *s1, *auxnode;
     int startID;
     
@@ -93,6 +96,7 @@ int delete_peer(serverlist **peers, char *address, int port, pthread_rwlock_t *r
                 (s1->prev)->next = s1->next;
                 (s1->next)->prev = s1->prev;
                 free(s1);
+                *n_peers--;
                 pthread_rwlock_unlock(rwlock);
                 return 1;
             }
