@@ -47,6 +47,7 @@ struct pthread_node *thread_list, *thread_head;  //lista de threads
 tasklist_t *tasklist;
 photolist_t *photolist;
 sem_t task_sem;
+sem_t update_sem; //semaphore used to block update routine until peer becomes up to date
 int recon = 0;    //indicates if peer comes from a broken connection or is first time connecting
 int pson_run = 0;
 pthread_t pson_thread = 0;
@@ -98,8 +99,6 @@ void *get_updated(void *thread_s){
 		}
 		else if(err == 0){ //client disconnected
 			printf("Peer disconnected from this server while updating me...\n");
-            printf("I automatically become an up to date peer\n");
-            updated = 1;
 
 			//close(s);
 			return NULL;
@@ -112,8 +111,8 @@ void *get_updated(void *thread_s){
                 printf("Updating process has reached its end, I am up to date\n");
                 updated = 1;
                 close(s);
+                sem_post(&update_sem);
                 return NULL;
-                break;
             case -1:
                 printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
 
@@ -255,6 +254,12 @@ void *pfather_interact(void *dummy){
     peer_addr.sin_family = AF_INET;
     peer_addr.sin_port = htons(gw_msg.port);
 	inet_aton(gw_msg.address, &peer_addr.sin_addr);
+
+    if(gw_msg.ID == 0){
+        ID = 0; //I was crowned the head of the list
+        updated = 1;
+        sem_post(&update_sem);
+    }
 
     if(updated == 0){
         printf("Contacting father in order to get updated\n");
@@ -495,6 +500,7 @@ void *id_socket(void *thread_s){
         c_interact(thread_s);
         return NULL;
     } else if( rmt_identifier == 1){ //peer requires updating
+        sem_wait(&update_sem);
         update_peer(thread_s); //will start updating peer with the existing content
         return NULL;
     } else if( rmt_identifier == 2){ //peer joins the chain
@@ -596,9 +602,6 @@ int main(){
 	recvfrom(s_gw, &ID, sizeof(ID), 0, (struct sockaddr *) &gw_addr, &addr_len);
 	printf("I was assign ID=%d\n", ID);
 
-    if(ID == 0) // am the first server again
-        updated = 1;
-
     //initialize tasklist
     tasklist = NULL;
     pthread_mutex_init(&task_mutex, NULL);
@@ -620,7 +623,7 @@ int main(){
     thread_list = thread_list->next;
     pthread_mutex_unlock(&thread_mutex);
 
-
+    sem_init(&update_sem, 0, 0); //initialize semaphore with value 0
     /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
 	rmt_addr_len = sizeof(struct sockaddr_in);
 	while(run){
