@@ -177,18 +177,20 @@ void update_peer(void *thread_s){
             /* delete deleter tasks */
             for(int i = 0; i < deleter_dim; i++){
                 pthread_mutex_lock(&task_mutex);
+                if(deleter_list[i] == tasklist){//ignore if its the actual tasklist pointer
+                    pthread_mutex_unlock(&task_mutex);
+                    break;
+                }
                 if(deleter_list[i]->prev != NULL)
                     (deleter_list[i]->prev)->next = deleter_list[i]->next;
                 if(deleter_list[i]->next != NULL)
                     (deleter_list[i]->next)->prev = deleter_list[i]->prev;
-                pthread_mutex_unlock(&task_mutex);
-
                 free(deleter_list[i]);
-                stop = 1;
-                break;
+                pthread_mutex_unlock(&task_mutex);
             }
             /* free deleter_list array memory */
-            free(deleter_list);
+            if(deleter_list != NULL)
+                free(deleter_list);
             send(s, &termination_task, sizeof(task_t), 0);
             printf("Peer is up to date\n");
             close(s);
@@ -259,6 +261,8 @@ void update_peer(void *thread_s){
         }
         /* wait for acknowledge */
         if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
+            if(deleter_list != NULL)
+                free(deleter_list);
             close(s);
             return;
         }
@@ -575,6 +579,8 @@ void *id_socket(void *thread_s){
         c_interact(thread_s);
         return NULL;
     } else if( rmt_identifier == 1){ //peer requires updating
+        if(updated)
+            sem_post(&update_sem);
         sem_wait(&update_sem);
         update_peer(thread_s); //will start updating peer with the existing content
         return NULL;
