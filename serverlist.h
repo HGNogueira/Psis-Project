@@ -18,4 +18,5 @@ int add_server(serverlist **peers, int *n_peers, char *address, int port, int ID
 int delete_peer(serverlist **peers, int *n_peers, char *address, int port, pthread_rwlock_t *rwlock);
 serverlist *search_server(serverlist **peers, int ID, pthread_rwlock_t *rwlock);
 serverlist *search_father(serverlist **peers, int ID, pthread_rwlock_t *rwlock);
+int searchlist_crown_head(serverlist **peers, int ID, pthread_rwlock_t *rwlock);
 

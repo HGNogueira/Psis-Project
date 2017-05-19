@@ -3,6 +3,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/types.h>
+#include <stdio.h>
 
 /* Implemented functions for serverlist looped linked list */
 
@@ -151,8 +152,9 @@ serverlist *search_father(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
     startID = s->ID;
 	while(1){
 		if(s->ID == ID){
+            s = s->prev;
             pthread_rwlock_unlock(rwlock);
-			return s->prev;
+			return s;
         }
         if(s->next->ID ==startID)
             break;
@@ -160,4 +162,25 @@ serverlist *search_father(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
 	}
     pthread_rwlock_unlock(rwlock);
 	return NULL;
+}
+
+int searchlist_crown_head(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
+    struct node *s;
+    int startID;
+    
+    pthread_rwlock_wrlock(rwlock); //must lock whole region, sensitive!
+	s = *peers;
+	if(s == NULL){//list is empty
+        printf("searchlist_minID: list is empty\n");
+        pthread_rwlock_unlock(rwlock);
+		return -1;
+    }
+
+    if((*peers)->ID == ID){
+        (*peers)->ID = 0;
+        pthread_rwlock_unlock(rwlock);
+        return 1;
+    }
+    pthread_rwlock_unlock(rwlock);
+    return 0;
 }
