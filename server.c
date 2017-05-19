@@ -31,6 +31,7 @@ typedef struct task_node{
     struct task_node *prev;
     struct task_node *next;
 } tasklist_t;
+
 /******************************************************************************/
 
 
@@ -158,17 +159,36 @@ void update_peer(void *thread_s){
     int s = (int) *((int*) thread_s);
     int err;
     int acknowledge;
-    tasklist_t *update_list;
+    tasklist_t *update_list, *auxlist;
+    tasklist_t **deleter_list;
+    int deleter_dim = 0, stop = 0;
     task_t termination_task;
 
     pthread_mutex_lock(&task_mutex);
     update_list = tasklist;
     pthread_mutex_unlock(&task_mutex);
 
+    deleter_list = NULL;
+
     while(1){
         /* if its the last item on tasklist */
         if(update_list == NULL){
             termination_task.type = -2; //updating process is over
+            /* delete deleter tasks */
+            for(int i = 0; i < deleter_dim; i++){
+                pthread_mutex_lock(&task_mutex);
+                if(deleter_list[i]->prev != NULL)
+                    (deleter_list[i]->prev)->next = deleter_list[i]->next;
+                if(deleter_list[i]->next != NULL)
+                    (deleter_list[i]->next)->prev = deleter_list[i]->prev;
+                pthread_mutex_unlock(&task_mutex);
+
+                free(deleter_list[i]);
+                stop = 1;
+                break;
+            }
+            /* free deleter_list array memory */
+            free(deleter_list);
             send(s, &termination_task, sizeof(task_t), 0);
             printf("Peer is up to date\n");
             close(s);
@@ -179,6 +199,61 @@ void update_peer(void *thread_s){
             update_list = update_list->prev;
             continue;
         }
+        if(update_list->task.type == -1){//no need to send delete, save info for later
+            deleter_dim++;
+            deleter_list = (tasklist_t**) realloc(deleter_list, sizeof(tasklist_t*)*deleter_dim);
+            deleter_list[deleter_dim - 1] = update_list; //save pointer to tasklist
+            update_list = update_list->prev;
+            continue;
+        }
+        if(update_list->task.type == 0){
+            /*check if photo has been deleted, no need to pass task if so */
+            for(int i = 0; i < deleter_dim; i++){
+                if( deleter_list[i]->task.photo_id == update_list->task.photo_id){
+                    pthread_mutex_lock(&task_mutex);
+                    if(update_list->prev != NULL)
+                        (update_list->prev)->next = update_list->next;
+                    if(update_list->next != NULL)
+                        (update_list->next)->prev = update_list->prev;
+                    pthread_mutex_unlock(&task_mutex);
+
+                    auxlist = update_list;
+                    update_list = update_list->prev;
+                    free(auxlist);
+                    stop = 1;
+                    break;
+                }
+            }
+            if(stop == 1){
+                stop = 0;
+                continue;
+            }
+        }
+
+        if(update_list->task.type == 1){
+            /*check if photo has been deleted, no need to pass task if so */
+            for(int i = 0; i < deleter_dim; i++){
+                if( deleter_list[i]->task.photo_id == update_list->task.photo_id){
+                    pthread_mutex_lock(&task_mutex);
+                    if(update_list->prev != NULL)
+                        (update_list->prev)->next = update_list->next;
+                    if(update_list->next != NULL)
+                        (update_list->next)->prev = update_list->prev;
+                    pthread_mutex_unlock(&task_mutex);
+
+                    auxlist = update_list;
+                    update_list = update_list->prev;
+                    free(auxlist);
+                    stop = 1;
+                    break;
+                }
+            }
+            if(stop == 1){
+                stop = 0;
+                continue;
+            }
+        }
+
         if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
                 perror("send error");
         }
