@@ -12,7 +12,7 @@ photolist_t *photolist_init(){
     return NULL;
 }
 
-    /* returns 0 if success, -1 if photo was already deleted, 1 if photo already there */
+    /* returns 0 if success, 1 if photo already there */
 int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, unsigned photo_size, pthread_rwlock_t *rwlock){
     photolist_t *auxphoto, *searchnode;
     int retval;
@@ -22,7 +22,6 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     auxphoto->photo_id = photo_id;
     strcpy(auxphoto->photo_name, photo_name);
     auxphoto->photo_size = photo_size;
-    auxphoto->deleted = 0;
     auxphoto->next = NULL;
     auxphoto->prev = NULL;
 
@@ -39,10 +38,6 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     searchnode = *photos;
     while(searchnode->next != NULL){
         if(searchnode->photo_id == photo_id){ //ID already in the list
-            if(searchnode->deleted == 1){
-                pthread_rwlock_unlock(rwlock);
-                return -1;
-            }
             pthread_rwlock_unlock(rwlock);
             return 1;
         }
@@ -97,10 +92,6 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     }
     while(searchnode->next != NULL){
         if(searchnode->photo_id == photo_id){
-            if(searchnode->deleted == 1){
-                pthread_rwlock_unlock(rwlock);
-                return -1;
-            }
             pthread_rwlock_unlock(rwlock);
             //other thread already inserted it
             return 1;
@@ -132,8 +123,41 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     }
 }
 
-    /* returns 0 if success, -1 if can't find photo, 1 if already deleted */
+    /* returns 0 if success, -1 if can't find photo */
 int photolist_delete(photolist_t **photos, uint32_t photo_id, char *photo_name, unsigned photo_size, pthread_rwlock_t *rwlock){
+    photolist_t *searchnode;
+    int retval;
 
+    // must be wrlock to avoid some other thread writing first node simultaneously 
+    pthread_rwlock_rdlock(rwlock);
+    if(*photos == NULL){
+        pthread_rwlock_unlock(rwlock);
+        return -1;
+    }
 
+    searchnode = *photos;
+    while(searchnode->next != NULL){
+        if(searchnode->photo_id == photo_id){ //ID already in the list
+            pthread_rwlock_unlock(rwlock);
+            pthread_rwlock_wrlock(rwlock);
+            if(searchnode == NULL){
+                pthread_rwlock_unlock(rwlock);
+                return -1;
+            }
+
+            if(searchnode->prev != NULL){
+                (searchnode->prev)->next = searchnode->next;
+            }
+            if(searchnode->next != NULL){
+                (searchnode->next)->prev = searchnode->prev;
+            }
+            free(searchnode);
+
+            pthread_rwlock_unlock(rwlock);
+            return 0;
+
+        }
+    }
+    pthread_rwlock_unlock(rwlock);
+    return -1;
 }
