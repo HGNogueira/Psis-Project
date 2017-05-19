@@ -156,7 +156,12 @@ void *p_interact(void *rwlock){
                 continue;
             }
             printf("Peer with port %d will connect to peer with port %d\n", tmp_node->next->port, tmp_node->port);
-            gw_msg.type = 1; //notify server is available
+            /* if the peer searching for a father is the oldest peer
+             * then we can guarantee he is updated
+             * there must always be a peer 0 */
+            if(searchlist_crown_head(&servers, gw_msg.ID, rwlock)){
+                gw_msg.ID = 0;//comunicate that peer is new 0 peer
+            }
             strcpy(gw_msg.address, tmp_node->address);
             gw_msg.port = tmp_node->port;
             sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
