@@ -16,7 +16,7 @@
 #include <semaphore.h>
 #include "photolist.h"
 #include "messages.h"
-#define S_PORT 3001
+#define S_PORT 3005
 
 /************************ Functional structures for server.c ******************/
     /* list of threads to easily initiate threads willingly */
@@ -49,18 +49,12 @@ tasklist_t *tasklist;
 photolist_t *photolist;
 sem_t task_sem;
 sem_t update_sem; //semaphore used to block update routine until peer becomes up to date
-int recon = 0;    //indicates if peer comes from a broken connection or is first time connecting
 int pson_run = 0;
 pthread_t pson_thread = 0;
 /******************************************************************************/
 
 void sigint_handler(int n){
 	run = 0;
-}
-
-    /*evaluates wether this task has not yet been performed */
-int is_task_new(task_t *task){
-    return 1;
 }
 
     /* this thread function implements the getting up to date routine
@@ -157,7 +151,7 @@ void *get_updated(void *thread_s){
     /* this thread function implements the server updating routine */
 void update_peer(void *thread_s){
     int s = (int) *((int*) thread_s);
-    int err;
+    int err, i;
     int acknowledge;
     tasklist_t *update_list, *auxlist;
     tasklist_t **deleter_list;
@@ -175,7 +169,7 @@ void update_peer(void *thread_s){
         if(update_list == NULL){
             termination_task.type = -2; //updating process is over
             /* delete deleter tasks */
-            for(int i = 0; i < deleter_dim; i++){
+            for(i = 0; i < deleter_dim; i++){
                 pthread_mutex_lock(&task_mutex);
                 if(deleter_list[i] == tasklist){//ignore if its the actual tasklist pointer
                     pthread_mutex_unlock(&task_mutex);
@@ -210,7 +204,7 @@ void update_peer(void *thread_s){
         }
         if(update_list->task.type == 0){
             /*check if photo has been deleted, no need to pass task if so */
-            for(int i = 0; i < deleter_dim; i++){
+            for(i = 0; i < deleter_dim; i++){
                 if( deleter_list[i]->task.photo_id == update_list->task.photo_id){
                     pthread_mutex_lock(&task_mutex);
                     if(update_list->prev != NULL)
@@ -234,7 +228,7 @@ void update_peer(void *thread_s){
 
         if(update_list->task.type == 1){
             /*check if photo has been deleted, no need to pass task if so */
-            for(int i = 0; i < deleter_dim; i++){
+            for(i = 0; i < deleter_dim; i++){
                 if( deleter_list[i]->task.photo_id == update_list->task.photo_id){
                     pthread_mutex_lock(&task_mutex);
                     if(update_list->prev != NULL)
@@ -294,12 +288,10 @@ void pson_interact(void *thread_s){
             close(s);
             return;
         }
-        if(acknowledge == -1){
-            auxlist = auxlist->prev;
-            continue;
-        }
+        
         /* semaphore: wait for new tasks */
         sem_wait(&task_sem);
+        
         auxlist = auxlist->next;
     }
     printf("Closing old pson\n");
@@ -318,13 +310,14 @@ void *pfather_interact(void *dummy){
     task_t recv_task;
     tasklist_t *tmp_tasklist;
     photolist_t *tmp_photolist;
-    int acknowledge; //used to ask for previous tasks if connection has been previously broken (recon global variable);
+    int acknowledge = 1; //used to ask for previous tasks if connection has been previously broken (recon global variable);
 
     /* demand gateway a new father peer */
     gw_msg.type = 5; 
     gw_msg.ID = ID;
 
     pthread_mutex_lock(&gw_mutex);
+    addr_len = sizeof(gw_addr);
     sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
     /* wait to know who will be peer father, only thread/occasion where server recfrom gw */
 	recvfrom(s_gw, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &gw_addr, &addr_len);
@@ -336,6 +329,7 @@ void *pfather_interact(void *dummy){
 
     if(gw_msg.ID == 0){
         ID = 0; //I was crowned the head of the list
+        printf("I am the head of the list\n");
         updated = 1;
         sem_post(&update_sem);
     }
@@ -402,34 +396,21 @@ void *pfather_interact(void *dummy){
 				perror("GW contact");
 			}
 			close(s);
-            recon = 1;              // this will be a reconnected peer for now on
             pfather_interact(NULL); //go back to trying to connect with new father
-			return NULL;
+			return NULL;            //never gets here, perpetual function
 		}
         printf("New task from my father\n");
+        sleep(3);
 
         acknowledge = 1; //in case recv_task.ID=ID I know I can go to next task
         /* only process task if this peer isn't the one responsible for it */
         if(recv_task.ID != ID ){
-            /* if this is a reconnected peer I must verify Im back in the chain at the right task */
-            if(recon == 1){
-                /* identify if task has taken place already */
-                acknowledge = is_task_new(&recv_task);
-            } 
-
-            if(acknowledge == -1){
-                send(s, &acknowledge, sizeof(acknowledge), 0);
-                continue;
-            }
-            /* if it reaches here we may now consider this peer not to be a reconnected peer anymore */
-            recon = 0;
             /* process new task */
             tmp_tasklist = (tasklist_t*) malloc(sizeof(tasklist_t));
             switch(recv_task.type){
                 case -1:
                     printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
-
-                    /* delete photo */
+                    retval = photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
 
                     break;
                 case 0:
@@ -447,8 +428,10 @@ void *pfather_interact(void *dummy){
 
                     break;
                 default:
-                    printf("Unknown routine for task with type %d\n", recv_task.type);
+                    printf("pfather_interact: Unknown routine for task with type %d\n", recv_task.type);
                     free(tmp_tasklist);
+                    acknowledge = 0;
+                    send(s, &acknowledge, sizeof(acknowledge), 0);
                     continue;
             }
             /* copy task information */
@@ -537,7 +520,7 @@ void c_interact(void *thread_scl){
 
                 break;
             default:
-                printf("Unknown routine for task with type %d\n", recv_task.type);
+                printf("c_interact: Unknown routine for task with type %d\n", recv_task.type);
                 free(tmp_tasklist);
                 continue;
         }
