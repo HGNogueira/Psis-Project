@@ -69,7 +69,7 @@ int gallery_connect(char *host, in_port_t port){
     int s_gw, s, scl;
 	socklen_t size_addr;
     message_gw gw_msg;
-    int wait_time = 1;
+    int wait_time = 1, cid = 0;
 
     /****** CONTACT GATEWAY ******/
 	gw_addr.sin_family = AF_INET;
@@ -130,6 +130,9 @@ int gallery_connect(char *host, in_port_t port){
         exit(EXIT_FAILURE);
     }
 
+    //identify peer that I am a client
+    send(s, &cid, sizeof(cid), 0);
+    
     return s;
 }
 

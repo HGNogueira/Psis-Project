@@ -46,15 +46,18 @@
 * \def PEER_SIDE_PORT
 * \brief  Peer side port
 */
-*
-#define CLIENT_SIDE_PORT 3000
-#define PEER_SIDE_PORT 3001
 
+#define CLIENT_SIDE_PORT 3000
+#define PEER_SIDE_PORT 3005
+
+/****** GLOBAL VARIABLES ********/
 int run = 1;
 int sc, sp; // client side and server side socket descriptors
 serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
-uint64_t photo_id = 0; /*photos id counter 
+uint64_t photo_id = 0; /*photos id counter
+int n_peers = 0;   /* number of total peers */
+/********************************/
 
 /*! \fn void sigint_handler(int n)
     \brief Signal to close the \a gateway
@@ -73,9 +76,11 @@ void sigint_handler(int n){
     \param gw_msg
     \param list_key
 */
+int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
     struct sockaddr_in srv_addr;
     int s, sgw;
     int retval;
+    int rmt_identifier;
 
     if((s = socket(AF_INET, SOCK_STREAM, 0))==-1){
 		perror("socket");
@@ -86,17 +91,21 @@ void sigint_handler(int n){
 	srv_addr.sin_port = htons(gw_msg->port);
 	inet_aton(gw_msg->address, &srv_addr.sin_addr);
 
-	if((sgw = connect(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in))) == 0){
-		printf("Server is still alive\n");
+	if( (sgw = connect(s, (const struct sockaddr *) &srv_addr, sizeof(struct sockaddr_in))) == 0){
+		printf("Server with port=%d is still alive\n", gw_msg->port);
+        /* comunicate with server that gateway is just checking its status */
+        rmt_identifier = 3;
+        send(s, &rmt_identifier, sizeof(rmt_identifier), 0);
         close(sgw);
         close(s);
         return 0;
 	}
 
     printf("Server with address:%s and port %d stopped working\n", gw_msg->address, gw_msg->port);
-    retval = delete_peer(&servers, gw_msg->address, gw_msg->port, rwlock);
+    retval = delete_peer(&servers, &n_peers, gw_msg->address, gw_msg->port, rwlock);
     if(retval == 1){
         printf("Found and successfully deleted peer\n");
+        printf("Total number of peers is %d\n", n_peers);
     } else if(retval == 0){
         printf("No server to delete found in serverlist\n");
     } else if(retval == -1){
@@ -113,7 +122,7 @@ void sigint_handler(int n){
     \brief Thread that interacts with client requests, receives socket descriptor
     \param list_key
 */
-void *c_interact(void *list_key){
+void *c_interact(void *rwlock){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
@@ -129,12 +138,12 @@ void *c_interact(void *list_key){
 				strcpy(gw_msg.address, tmp_node->address);
 				gw_msg.port = tmp_node->port;
 
-                pthread_rwlock_wrlock(rwlock); //could do rdlock->wrlock but more expensive
+                //no need for rwlock, worst realistic case slight load imbalance
 				printf("Server available with port %d\n", tmp_node->port);
 				tmp_node->nclients = tmp_node->nclients + 1;
-                pthread_rwlock_unlock(rwlock);
 
 				sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
+                continue;
 			}
 			else{
 				printf("No servers available\n");
@@ -144,6 +153,7 @@ void *c_interact(void *list_key){
 
 		} else if(gw_msg.type == -1){ //server connection lost
                 check_and_update_peer(&gw_msg, rwlock);
+                continue;
         } else{
             printf("Received message from client with non-defined type %d\n", gw_msg.type);
         }
@@ -154,8 +164,9 @@ void *c_interact(void *list_key){
     \brief Thread that interacts with peer requests, receives socket descriptor
     \param list_key
 */
-void *p_interact(void *list_key){
+void *p_interact(void *rwlock){
     socklen_t addr_len;
+    int retval;
     struct sockaddr_in rmt_addr;
     serverlist *tmp_node;
     message_gw gw_msg;
@@ -164,24 +175,48 @@ void *p_interact(void *list_key){
 		addr_len = sizeof(rmt_addr);
 		recvfrom(sp, &gw_msg, sizeof(gw_msg), 0, (struct sockaddr *) &rmt_addr, &addr_len);
 		if(gw_msg.type == 1){ //contacted by peer
-			add_server(&servers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID, rwlock);
+			retval = add_server(&servers, &n_peers, inet_ntoa(rmt_addr.sin_addr), gw_msg.port, ID, rwlock);
+            if(retval == 1){ /* guaranteed its the first server */
+                ID = 0; //go back to ID=0 if all peers are gone
+            }
+
 			sendto(sp, &ID, sizeof(ID), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back ID information
 			ID++;
 			printf("New server available - addr=%s, port =%d\n", servers->address, servers->port);
+            printf("System contains %d peers total\n", n_peers);
 		} else if(gw_msg.type == 2){   //server lost 1 connection
 			if(!(tmp_node = search_server(&servers, gw_msg.ID, rwlock)))
 				printf("Can't find server in list\n");
 			else
-                pthread_rwlock_wrlock(rwlock);
-				tmp_node->nclients = tmp_node->nclients - 1;
+                pthread_rwlock_rdlock(rwlock);//no need for wrlock (worst case slight load imbalance
+                if(tmp_node)//may have been deleted meanwhile
+                    tmp_node->nclients = tmp_node->nclients - 1;
                 pthread_rwlock_unlock(rwlock);
                 printf("Updated information from server\n");
 		} else if(gw_msg.type == -1){   //peer to peer connection lost
                 check_and_update_peer(&gw_msg, rwlock);
-        } else if (gw_msg.type == 3){   //peer querying photo_id
+        } else if (gw_msg.type == 4){   //peer querying photo_id
 			sendto(sp, &photo_id, sizeof(photo_id), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back photo_id information
+            //######## NEED photo_id GUARD !!!#####
             photo_id++;
-        } else{
+        }
+        else if(gw_msg.type ==5 ){/* peer searching for father */
+            if(!(tmp_node = search_father(&servers, gw_msg.ID, rwlock))){
+                printf("Peer can't be found on list, cannot attribute father peer\n");
+                continue;
+            }
+            printf("Peer with port %d will connect to peer with port %d\n", tmp_node->next->port, tmp_node->port);
+            /* if the peer searching for a father is the oldest peer
+             * then we can guarantee he is updated
+             * there must always be a peer 0 */
+            if(searchlist_crown_head(&servers, gw_msg.ID, rwlock)){
+                gw_msg.ID = 0;//comunicate that peer is new 0 peer
+            }
+            strcpy(gw_msg.address, tmp_node->address);
+            gw_msg.port = tmp_node->port;
+            sendto(sp, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
+        }
+        else{
             printf("Received message from peer with non-defined type %d\n", gw_msg.type);
         }
 	}
