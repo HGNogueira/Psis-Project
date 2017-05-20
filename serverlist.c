@@ -81,9 +81,14 @@ int delete_peer(serverlist **peers, int *n_peers, char *address, int port, pthre
 	if(s1 == NULL)
 		return -1;
     if(s1->next == s1){/* list with only one element */
-        free(s1);
-        *peers = NULL;
-        return 1;
+		if( strcmp(s1->address, address) == 0){
+            if( s1->port == port){
+                free(s1);
+                *peers = NULL;
+                pthread_rwlock_unlock(rwlock);
+                return 1;
+            }
+        }
     }
 
     startID = s1->ID;
