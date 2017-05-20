@@ -124,7 +124,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
 }
 
     /* returns 0 if success, -1 if can't find photo */
-int photolist_delete(photolist_t **photos, uint32_t photo_id, char *photo_name, unsigned photo_size, pthread_rwlock_t *rwlock){
+int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_size, pthread_rwlock_t *rwlock){
     photolist_t *searchnode;
     int retval;
 

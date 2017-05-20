@@ -20,4 +20,4 @@ typedef struct photo_node_t{
 photolist_t *photolist_init();
 /* add photo to photolist, to be inserted in sorted order according to photo_id */
 int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, unsigned photo_size, pthread_rwlock_t *rwlock);
-int photolist_delete(photolist_t **photos, uint32_t photo_id, char *photo_name, unsigned photo_size, pthread_rwlock_t *rwlock);
+int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_size, pthread_rwlock_t *rwlock);
