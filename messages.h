@@ -54,6 +54,7 @@ struct task{
      * -1: delete photo with photo_id
      *  0: add keyword to photo_id
      *  1: add new photo with photo_name and nbytes;
+     *  2: print photo_list
      *
      */
     int type;
