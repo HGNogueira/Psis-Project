@@ -45,7 +45,7 @@ int main(){
 
 	
 	while(1){  /* interaction */
-        printf("Type task type: -1, 0, 1:");
+        printf("Type task type: -1, 0, 1, 2:");
         scanf("%d", &task_type);
         task.type = task_type;
         switch(task_type){
@@ -74,6 +74,9 @@ int main(){
                 strcpy(task.photo_name, photo_name);
                 task.type = 1;
 
+                break;
+            case 2:
+                printf("Peers will print their lists\n");
                 break;
             default:
                 printf("Unknown routine for task with type %d\n", task_type);
