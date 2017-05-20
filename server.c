@@ -138,6 +138,7 @@ void *get_updated(void *thread_s){
          * can only update if it isnt getting updated */
         tmp_tasklist->task.type = recv_task.type;
         tmp_tasklist->task.ID = recv_task.ID;
+        tmp_tasklist->task.photo_id = recv_task.photo_id;
 
         tmp_tasklist->next = current_node;
         tmp_tasklist->prev = NULL;
@@ -192,6 +193,10 @@ void update_peer(void *thread_s){
         }
 
         if(update_list->task.type == -3){ //don't send dummy task
+            update_list = update_list->prev;
+            continue;
+        }
+        if(update_list->task.type == 2){ //don't print task
             update_list = update_list->prev;
             continue;
         }
@@ -400,7 +405,6 @@ void *pfather_interact(void *dummy){
 			return NULL;            //never gets here, perpetual function
 		}
         printf("New task from my father\n");
-        sleep(3);
 
         acknowledge = 1; //in case recv_task.ID=ID I know I can go to next task
         /* only process task if this peer isn't the one responsible for it */
@@ -411,6 +415,12 @@ void *pfather_interact(void *dummy){
                 case -1:
                     printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
                     retval = photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
+                    if(retval == -1){/*already deleted or non existant */
+                        free(tmp_tasklist);
+                        acknowledge = 1;
+                        send(s, &acknowledge, sizeof(acknowledge), 0);
+                        continue;
+                    }
 
                     break;
                 case 0:
@@ -425,7 +435,10 @@ void *pfather_interact(void *dummy){
                     strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
                     /* add photo to photolist */
                     retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
-
+                    break;
+                case 2:
+                    if(photolist_print(&photolist, &photolock) == -1)
+                        printf("Empty list\n");
                     break;
                 default:
                     printf("pfather_interact: Unknown routine for task with type %d\n", recv_task.type);
@@ -451,7 +464,6 @@ void *pfather_interact(void *dummy){
             pthread_mutex_unlock(&task_mutex);
         }
         send(s, &acknowledge, sizeof(acknowledge), 0);
-
     }
 }
 
@@ -491,8 +503,11 @@ void c_interact(void *thread_scl){
         switch(recv_task.type){
             case -1:
                 printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
-
-                /* delete photo */
+                retval = photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
+                if(retval == -1){/*already deleted or non existant */
+                    free(tmp_tasklist);
+                    continue;
+                }
 
                 break;
             case 0:
@@ -518,6 +533,10 @@ void c_interact(void *thread_scl){
                 /* add photo to photolist */
                 retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
 
+                break;
+            case 2:
+                if(photolist_print(&photolist, &photolock) == -1)
+                    printf("Empty list\n");
                 break;
             default:
                 printf("c_interact: Unknown routine for task with type %d\n", recv_task.type);
