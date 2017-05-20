@@ -16,7 +16,7 @@
 #include "serverlist.h"
 
 #define CLIENT_SIDE_PORT 3000
-#define PEER_SIDE_PORT 3001
+#define PEER_SIDE_PORT 3005
 
 /****** GLOBAL VARIABLES ********/
 int run = 1;
@@ -98,6 +98,7 @@ void *c_interact(void *rwlock){
 				tmp_node->nclients = tmp_node->nclients + 1;
 
 				sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
+                continue;
 			}
 			else{
 				printf("No servers available\n");
@@ -107,6 +108,7 @@ void *c_interact(void *rwlock){
 
 		} else if(gw_msg.type == -1){ //server connection lost
                 check_and_update_peer(&gw_msg, rwlock);
+                continue;
         } else{
             printf("Received message from client with non-defined type %d\n", gw_msg.type);
         }
@@ -164,7 +166,7 @@ void *p_interact(void *rwlock){
             }
             strcpy(gw_msg.address, tmp_node->address);
             gw_msg.port = tmp_node->port;
-            sendto(sc, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
+            sendto(sp, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
         }
         else{
             printf("Received message from peer with non-defined type %d\n", gw_msg.type);
