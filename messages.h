@@ -11,6 +11,9 @@ typedef struct message_gw{
      *  0 : client initiating contact
      *  1 : server initiating contact
      *  2 : peer lost one client (load balancing)
+     *  3 : peer lost father peer
+     *  4 : peer demanding photo_id generation
+     *  5 : peer demanding father peer to connect
      *
      *  gateway -> client
      *  0 : no available peers in response to client contact
@@ -30,8 +33,34 @@ typedef struct message{
     int  warning;
 } message;
 
-typedef struct photo{
-    uint32_t photo_id;
-    char photo_name[50];
-    uint64_t photo_size;
-} photo;
+
+/* Define task structure indicating information action to take, these can be:
+ *      - Delete photo with photo_id: type = -1
+ *      - Search keyword: type = 0
+ *      - Add photo with nbytes and photo_name: type = 1
+ *      - Add keyword to photo (based on photo_id): type = 2
+ *
+ *      Note: in case of the "Add photo" functionality this serves as a way to 
+ *  comunicate to peer that a photo will be transfered right after this message is sent.
+ *
+ * this is usefull to be able to trace back what needs be done to update fellow peer
+ */
+
+typedef struct task task_t;
+struct task{
+    /* task type contains information about the action to take with this task
+     * -3: dummy task, should be ignored
+     * -2: update terminated (sent by updating peer indicating end of update routine)
+     * -1: delete photo with photo_id
+     *  0: add keyword to photo_id
+     *  1: add new photo with photo_name and nbytes;
+     *  2: print photo_list
+     *
+     */
+    int type;
+    int ID;              //will correspond to the ID of the responsible peer
+    uint64_t photo_id;   //corresponds to the filename
+    char photo_name[50]; //corresponds to the filename to save photo
+    char keyword[50];    //added keyword or lookup keyword
+    unsigned photo_size;
+};
