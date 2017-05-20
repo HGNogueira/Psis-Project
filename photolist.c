@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <stdio.h>
 
 #include "photolist.h"
 
@@ -32,10 +33,18 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
         pthread_rwlock_unlock(rwlock);
         return 0;
     }
+    searchnode = *photos;
+    if(searchnode->photo_id > photo_id){//insert in previous
+        auxphoto->prev = searchnode->prev;
+        auxphoto->next = searchnode;
+        searchnode->prev = auxphoto;
+        *photos = auxphoto; //start of list becomes this new photo
+        pthread_rwlock_unlock(rwlock);
+        return 0;
+    }
     pthread_rwlock_unlock(rwlock);
 
     pthread_rwlock_rdlock(rwlock);
-    searchnode = *photos;
     while(searchnode->next != NULL){
         if(searchnode->photo_id == photo_id){ //ID already in the list
             pthread_rwlock_unlock(rwlock);
@@ -136,7 +145,25 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_siz
     }
 
     searchnode = *photos;
-    while(searchnode->next != NULL){
+    if(searchnode->photo_id == photo_id){ //first in the list
+            pthread_rwlock_unlock(rwlock);
+            pthread_rwlock_wrlock(rwlock);
+            if(searchnode == NULL){
+                pthread_rwlock_unlock(rwlock);
+                return -1;
+            }
+
+            if(searchnode->next != NULL){
+                (searchnode->next)->prev = searchnode->prev;
+            }
+            free(searchnode);
+            *photos = searchnode->next;
+
+            pthread_rwlock_unlock(rwlock);
+            return 0;
+    }
+    searchnode = searchnode->next;
+    while(searchnode != NULL){
         if(searchnode->photo_id == photo_id){ //ID already in the list
             pthread_rwlock_unlock(rwlock);
             pthread_rwlock_wrlock(rwlock);
@@ -155,9 +182,29 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_siz
 
             pthread_rwlock_unlock(rwlock);
             return 0;
-
         }
+        searchnode = searchnode->next;
     }
     pthread_rwlock_unlock(rwlock);
     return -1;
+}
+
+int photolist_print(photolist_t **photos, pthread_rwlock_t *rwlock){
+    photolist_t *searchnode;
+
+    pthread_rwlock_rdlock(rwlock);
+
+    if(*photos == NULL){
+        pthread_rwlock_unlock(rwlock);
+        return -1;
+    }
+
+    searchnode = *photos;
+    while(searchnode != NULL){
+        printf("%s(%"PRIu64")->", searchnode->photo_name, searchnode->photo_id);
+        searchnode = searchnode->next;
+    }
+    pthread_rwlock_unlock(rwlock);
+    printf("NULL\n");
+    return 0;
 }
