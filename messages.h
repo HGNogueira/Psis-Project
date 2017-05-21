@@ -27,12 +27,6 @@ typedef struct message_gw{
     int  ID;
 } message_gw;
 
-typedef struct message{
-    int type;
-    char buffer[MESSAGE_LEN];
-    int  warning;
-} message;
-
 
 /* Define task structure indicating information action to take, these can be:
  *      - Delete photo with photo_id: type = -1
@@ -63,4 +57,5 @@ struct task{
     char photo_name[50]; //corresponds to the filename to save photo
     char keyword[50];    //added keyword or lookup keyword
     unsigned photo_size;
+    int turns;           //additional indicator to control perpetual propagation
 };
