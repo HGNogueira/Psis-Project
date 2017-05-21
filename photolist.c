@@ -115,6 +115,10 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
         }
         searchnode = searchnode->next;
     }
+    if(searchnode->photo_id == photo_id){
+            pthread_rwlock_unlock(rwlock);
+            return 1;
+    }
     if(searchnode->photo_id > photo_id){//insert in previous
         auxphoto->prev = searchnode->prev;
         auxphoto->next = searchnode;
