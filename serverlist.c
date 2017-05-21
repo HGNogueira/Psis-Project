@@ -27,6 +27,7 @@ int add_server(serverlist **peers, int *n_peers, char *address, int port, int ID
     if(*peers == NULL){
         newnode->prev = newnode; //previous node is itself
         newnode->next = newnode; //next node is itself
+        newnode->ID = 0; //first peer is always ID = 0
         *peers = newnode;
     } else{ //insert before list head
         auxnode = (*peers)->prev;
@@ -35,8 +36,8 @@ int add_server(serverlist **peers, int *n_peers, char *address, int port, int ID
         newnode->next = (*peers);
         (*peers)->prev = newnode;
     }//*server keeps pointing to the same node
-    *n_peers++;
-    if(*n_peers == 1)/* first server on the list */
+    (*n_peers)++;
+    if((*n_peers) == 1)/* first server on the list */
         retval = 1;
     pthread_rwlock_unlock(rwlock);
     
@@ -86,6 +87,7 @@ int delete_peer(serverlist **peers, int *n_peers, char *address, int port, pthre
             if( s1->port == port){
                 free(s1);
                 *peers = NULL;
+                (*n_peers) = 0;
                 pthread_rwlock_unlock(rwlock);
                 return 1;
             }
@@ -103,7 +105,7 @@ int delete_peer(serverlist **peers, int *n_peers, char *address, int port, pthre
                 (s1->prev)->next = s1->next;
                 (s1->next)->prev = s1->prev;
                 free(s1);
-                *n_peers--;
+                (*n_peers)--;
                 pthread_rwlock_unlock(rwlock);
                 return 1;
             }
@@ -177,7 +179,7 @@ int searchlist_crown_head(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
     pthread_rwlock_wrlock(rwlock); //must lock whole region, sensitive!
 	s = *peers;
 	if(s == NULL){//list is empty
-        printf("searchlist_minID: list is empty\n");
+        printf("searchlist_crown_head: list is empty\n");
         pthread_rwlock_unlock(rwlock);
 		return -1;
     }
