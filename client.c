@@ -9,6 +9,7 @@
 
 #include "messages.h"
 #include "clientAPI.h"
+#include "phototransfer.h"
 
 #define GATE_PORT 3000
 #define GATE_ADDR "127.0.0.1"
@@ -73,7 +74,12 @@ int main(){
                 strcpy(task.photo_name, photo_name);
                 task.type = 1;
 
-                break;
+                if( send(s, (void *) &task, sizeof(task), 0) == -1){
+                    perror("send");
+                    exit(EXIT_FAILURE);
+                }
+                phototransfer_send(s, task.photo_name);
+                continue;
             case 2:
                 printf("Peers will print their lists\n");
                 break;
