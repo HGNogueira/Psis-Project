@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include "../phototransfer.h"
 
-#define RMTPORT 3005
+#define RMTPORT 3006
 #define ADDRESS "127.0.0.1"
 
 int main(){
@@ -12,7 +13,7 @@ int main(){
     struct sockaddr_in rmt_addr;
     FILE *f;
     unsigned char *img;
-    long length;
+    unsigned photo_size;
 
 	rmt_addr.sin_family = AF_INET;
 	rmt_addr.sin_port = htons(RMTPORT);
@@ -25,13 +26,9 @@ int main(){
 
     connect(s, (const struct sockaddr *) &rmt_addr, sizeof(struct sockaddr_in));
 
-    recv(s, &(length), sizeof(length), 0);
+    phototransfer_recv(s,"recv_photo.png", &photo_size);
+    printf("Transfer complete\n");
+    close(s);
 
-    img = (unsigned char*) malloc(sizeof(unsigned char)*length);
-    
-    recv(s, img, sizeof(unsigned char)*length, 0);
-    // CREATE PNG FROM DATA
-    f = fopen("recv.png", "w");
-    fwrite(img, sizeof(char), length, f);
-    fclose(f);
+    return 0;
 }

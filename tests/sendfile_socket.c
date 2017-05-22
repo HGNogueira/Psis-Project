@@ -2,27 +2,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include "../phototransfer.h"
 
-#define MYPORT 3005
+#define MYPORT 3006
 
 int main(){
     int s, scl;
     socklen_t addrlen;
     struct sockaddr_in srv_addr, rmt_addr;
     unsigned char *img;
-
-    // OPEN FILE TO READ
-    FILE * f = fopen("image.png", "r");
-
-    // GET FILE SIZE AND ALLOC SUFFICIENT MEMORY
-    fseek(f, 0, SEEK_END);
-    long length = ftell(f);
-    fseek (f, 0, SEEK_SET);
-    img = malloc(length * sizeof(unsigned char));
-
-    // STORE DATA INTO BUFFER
-    fread(img, sizeof(unsigned char), length, f);
-    fclose(f);
+    unsigned photo_size;
 
     if(  (s = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
 		perror("socket");
@@ -46,7 +35,8 @@ int main(){
     addrlen = sizeof(struct sockaddr_in);
 	scl = accept(s, (struct sockaddr *) &rmt_addr, &addrlen);
 
-    send(scl, &length, sizeof(length), 0);
-    send(scl, img, sizeof(unsigned char)*length, 0);
+    if(!phototransfer_send(scl, "image.png", &photo_size))
+        printf("Photo sent\n");
+
     close(s);
 }
