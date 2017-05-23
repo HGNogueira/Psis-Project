@@ -6,6 +6,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "photolist.h"
 
@@ -160,6 +161,10 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_siz
             if(searchnode->next != NULL){
                 (searchnode->next)->prev = searchnode->prev;
             }
+            if(unlink(searchnode->photo_name) == -1){
+                perror("photolist_delete (unlink)");
+            }
+
             free(searchnode);
             *photos = searchnode->next;
 
@@ -181,6 +186,9 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_siz
             }
             if(searchnode->next != NULL){
                 (searchnode->next)->prev = searchnode->prev;
+            }
+            if(unlink(searchnode->photo_name) == -1){
+                perror("photolist_delete (unlink)");
             }
             free(searchnode);
 
