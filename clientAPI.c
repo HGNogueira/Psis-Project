@@ -82,8 +82,8 @@ int gallery_connect(char *host, in_port_t port){
 	}
 	gw_msg.type = 0; /* type indicates client trying to establish connection */
 
-    if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){ 
-            perror("GW contact"); 
+    if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
+            perror("GW contact");
     }
 	/****** GATEWAY CONTACT ESTABLISHED *****/
 
@@ -132,7 +132,7 @@ int gallery_connect(char *host, in_port_t port){
 
     //identify peer that I am a client
     send(s, &cid, sizeof(cid), 0);
-    
+
     return s;
 }
 

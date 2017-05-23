@@ -38,7 +38,7 @@ typedef struct task_node{
 
 /****************** GLOBAL VARIABLES ******************************************/
 int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
-pthread_mutex_t gw_mutex;      
+pthread_mutex_t gw_mutex;
 pthread_mutex_t thread_mutex;
 pthread_mutex_t task_mutex;
 pthread_rwlock_t photolock;
@@ -78,7 +78,7 @@ void *get_updated(void *thread_s){
 
     pthread_mutex_lock(&task_mutex);
     if(tasklist == NULL){
-        /* create dummy task, serves as a bridge between tasks to be seen as 
+        /* create dummy task, serves as a bridge between tasks to be seen as
          * previous and after update cycle */
         current_node = (tasklist_t *) malloc(sizeof(tasklist_t));
         current_node->task.type = -3; //indicates dummy task
@@ -143,7 +143,7 @@ void *get_updated(void *thread_s){
                 if(retval == 0){
                     acknowledge = 2;
                     send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
-                     
+
                     retval = phototransfer_recv(s, recv_task.photo_name);
                     if(retval != 0){
                         printf("get_updated: couldn't receive new photo with name %s\n", recv_task.photo_name);
@@ -327,7 +327,7 @@ void update_peer(void *thread_s){
             return;
         }
         sleep(1);
-        
+
         if(acknowledge == 0){//no need to continue
             /* free deleter_list array memory */
             /*don't erase information since we might not have gone to the bottom */
@@ -350,7 +350,7 @@ void pson_interact(void *thread_s){
     int s = (int) *((int*) thread_s);
     int err;
     int acknowledge; //indicates if son peer wants next or previous item on list
-    
+
     /* semaphore wait */
     sem_wait(&task_sem);
     pthread_mutex_lock(&task_mutex);
@@ -388,10 +388,10 @@ void pson_interact(void *thread_s){
             close(s);
             return;
         }
-        
+
         /* semaphore: wait for new tasks */
         sem_wait(&task_sem);
-        
+
         auxlist = auxlist->next;
     }
     printf("Closing old pson\n");
@@ -413,7 +413,7 @@ void *pfather_interact(void *dummy){
     int acknowledge = 1; //used to ask for previous tasks if connection has been previously broken (recon global variable);
 
     /* demand gateway a new father peer */
-    gw_msg.type = 5; 
+    gw_msg.type = 5;
     gw_msg.ID = ID;
 
     pthread_mutex_lock(&gw_mutex);
@@ -540,7 +540,7 @@ void *pfather_interact(void *dummy){
                     if(retval == 0){
                         acknowledge = 2;
                         send(s, &acknowledge, sizeof(acknowledge), 0);
-                     
+
                         retval = phototransfer_recv(s, recv_task.photo_name);
                         if(retval != 0){
                             printf("get_updated: couldn't receive new photo with name %s\n", recv_task.photo_name);
@@ -571,13 +571,13 @@ void *pfather_interact(void *dummy){
             tmp_tasklist->task.photo_size;
             tmp_tasklist->task.turns = recv_task.turns;
 
-            /* insert tmp_list to head of task list */ 
+            /* insert tmp_list to head of task list */
             pthread_mutex_lock(&task_mutex);
             tmp_tasklist->next = NULL;
             tmp_tasklist->prev = tasklist;
             if(tasklist!=NULL){
                 tasklist->next = tmp_tasklist;
-            } 
+            }
             tasklist = tmp_tasklist;
             sem_post(&task_sem);
             pthread_mutex_unlock(&task_mutex);
@@ -639,7 +639,7 @@ void c_interact(void *thread_scl){
             case 1:
                 printf("Adding new photo with name %s\n", recv_task.photo_name);
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
-                
+
                 /* might be useful to check if name is occupied */
 
                 /* ask for photo_id from gateway */
@@ -681,13 +681,13 @@ void c_interact(void *thread_scl){
         else
             tmp_tasklist->task.turns = 1;
 
-        /* insert tmp_list to head of task list */ 
+        /* insert tmp_list to head of task list */
         pthread_mutex_lock(&task_mutex);
         tmp_tasklist->next = NULL;
         tmp_tasklist->prev = tasklist;
         if(tasklist!=NULL){
             tasklist->next = tmp_tasklist;
-        } 
+        }
         tasklist = tmp_tasklist;
         sem_post(&task_sem);
         pthread_mutex_unlock(&task_mutex);
@@ -729,10 +729,10 @@ void *id_socket(void *thread_s){
         }
         pson_thread = pthread_self();
         pson_run = 1;
-            
+
         pson_interact(thread_s);
         return NULL;
-    } 
+    }
     if( rmt_identifier == 3){ //gateway is just checking if server is alive
         close(s);
         return NULL;
@@ -824,7 +824,7 @@ int main(){
     pthread_mutex_init(&gw_mutex, NULL);
     sem_init(&task_sem, 0, 0); //initialize semaphore with value 0
     //initialize photolist
-    photolist = photolist_init(); 
+    photolist = photolist_init();
     pthread_rwlock_init(&photolock, NULL);
 
     pthread_mutex_init(&thread_mutex, NULL);

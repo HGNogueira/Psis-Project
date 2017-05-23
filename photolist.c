@@ -26,7 +26,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     auxphoto->next = NULL;
     auxphoto->prev = NULL;
 
-    // must be wrlock to avoid some other thread writing first node simultaneously 
+    // must be wrlock to avoid some other thread writing first node simultaneously
     pthread_rwlock_wrlock(rwlock);
     if(*photos == NULL){
         *photos = auxphoto;
@@ -141,7 +141,7 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_siz
     photolist_t *searchnode;
     int retval;
 
-    // must be wrlock to avoid some other thread writing first node simultaneously 
+    // must be wrlock to avoid some other thread writing first node simultaneously
     pthread_rwlock_rdlock(rwlock);
     if(*photos == NULL){
         pthread_rwlock_unlock(rwlock);
