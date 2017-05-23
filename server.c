@@ -38,7 +38,11 @@ typedef struct task_node{
 
 /****************** GLOBAL VARIABLES ******************************************/
 int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
+<<<<<<< HEAD
 pthread_mutex_t gw_mutex;      
+=======
+pthread_mutex_t gw_mutex;
+>>>>>>> lino
 pthread_mutex_t thread_mutex;
 pthread_mutex_t task_mutex;
 pthread_rwlock_t photolock;
@@ -79,6 +83,7 @@ void *get_updated(void *thread_s){
     pthread_mutex_lock(&task_mutex);
     if(tasklist == NULL){
         /* create dummy task, serves as a bridge between tasks to be seen as 
+
          * previous and after update cycle */
         current_node = (tasklist_t *) malloc(sizeof(tasklist_t));
         current_node->task.type = -3; //indicates dummy task
@@ -143,7 +148,7 @@ void *get_updated(void *thread_s){
                 if(retval == 0){
                     acknowledge = 2;
                     send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
-                     
+
                     retval = phototransfer_recv(s, recv_task.photo_name);
                     if(retval != 0){
                         printf("get_updated: couldn't receive new photo with name %s\n", recv_task.photo_name);
@@ -156,6 +161,15 @@ void *get_updated(void *thread_s){
                         continue;
                     }
                 }
+
+                if(retval == 1){
+                    free(tmp_tasklist);
+                    acknowledge = 1;
+                    send(s, &acknowledge, sizeof(acknowledge), 0);
+                    pthread_mutex_unlock(&update_mutex);
+                    continue;
+                }
+
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
 
                 break;
@@ -319,8 +333,8 @@ void update_peer(void *thread_s){
             return;
         }
         sleep(1);
-        
-        if(acknowledge == 0){//no need to continue
+
+       if(acknowledge == 0){//no need to continue
             /* free deleter_list array memory */
             /*don't erase information since we might not have gone to the bottom */
             if(deleter_list != NULL)
@@ -342,7 +356,7 @@ void pson_interact(void *thread_s){
     int s = (int) *((int*) thread_s);
     int err;
     int acknowledge; //indicates if son peer wants next or previous item on list
-    
+
     /* semaphore wait */
     sem_wait(&task_sem);
     pthread_mutex_lock(&task_mutex);
@@ -380,10 +394,10 @@ void pson_interact(void *thread_s){
             close(s);
             return;
         }
-        
         /* semaphore: wait for new tasks */
         sem_wait(&task_sem);
-        
+
+>>>>>>> lino
         auxlist = auxlist->next;
     }
     printf("Closing old pson\n");
@@ -405,7 +419,6 @@ void *pfather_interact(void *dummy){
     int acknowledge = 1; //used to ask for previous tasks if connection has been previously broken (recon global variable);
 
     /* demand gateway a new father peer */
-    gw_msg.type = 5; 
     gw_msg.ID = ID;
 
     pthread_mutex_lock(&gw_mutex);
@@ -532,7 +545,7 @@ void *pfather_interact(void *dummy){
                     if(retval == 0){
                         acknowledge = 2;
                         send(s, &acknowledge, sizeof(acknowledge), 0);
-                     
+
                         retval = phototransfer_recv(s, recv_task.photo_name);
                         if(retval != 0){
                             printf("get_updated: couldn't receive new photo with name %s\n", recv_task.photo_name);
@@ -564,12 +577,14 @@ void *pfather_interact(void *dummy){
             tmp_tasklist->task.turns = recv_task.turns;
 
             /* insert tmp_list to head of task list */ 
+
             pthread_mutex_lock(&task_mutex);
             tmp_tasklist->next = NULL;
             tmp_tasklist->prev = tasklist;
             if(tasklist!=NULL){
                 tasklist->next = tmp_tasklist;
             } 
+
             tasklist = tmp_tasklist;
             sem_post(&task_sem);
             pthread_mutex_unlock(&task_mutex);
@@ -631,7 +646,7 @@ void c_interact(void *thread_scl){
             case 1:
                 printf("Adding new photo with name %s\n", recv_task.photo_name);
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
-                
+
                 /* might be useful to check if name is occupied */
 
                 /* ask for photo_id from gateway */
@@ -673,7 +688,7 @@ void c_interact(void *thread_scl){
         else
             tmp_tasklist->task.turns = 1;
 
-        /* insert tmp_list to head of task list */ 
+        /* insert tmp_list to head of task list */
         pthread_mutex_lock(&task_mutex);
         tmp_tasklist->next = NULL;
         tmp_tasklist->prev = tasklist;
@@ -683,7 +698,53 @@ void c_interact(void *thread_scl){
         tasklist = tmp_tasklist;
         sem_post(&task_sem);
         pthread_mutex_unlock(&task_mutex);
+
 	}
+}
+
+    /* id_socket identifies which type of comunication has been established */
+void *id_socket(void *thread_s){
+    int err;
+    int rmt_identifier;
+    message_gw gw_msg;
+    int s = (int) *( (int *) thread_s);
+
+    if( (err = recv(s, &rmt_identifier, sizeof(rmt_identifier), 0)) == -1){
+			perror("id_socket: recv error");
+			pthread_exit(NULL);
+    } else if(err == 0){ //client disconnected
+			printf("Unidentified remote connection disconnected from this peer\n");
+			close(s);
+			return(NULL);
+	}
+
+    if( rmt_identifier == 0){ //approached by new client
+        c_interact(thread_s);
+        return NULL;
+    } else if( rmt_identifier == 1){ //peer requires updating
+        if(updated)
+            sem_post(&update_sem);
+        sem_wait(&update_sem);
+        update_peer(thread_s); //will start updating peer with the existing content
+        return NULL;
+    } else if( rmt_identifier == 2){ //peer joins the chain
+        if(pson_run != 0){
+            printf("New pson, make other pson stop thread\n");
+            pson_run = 0;
+            sem_post(&task_sem);
+            void *retval;
+            pthread_join(pson_thread, &retval);
+        }
+        pson_thread = pthread_self();
+        pson_run = 1;
+
+        pson_interact(thread_s);
+        return NULL;
+    }
+    if( rmt_identifier == 3){ //gateway is just checking if server is alive
+        close(s);
+        return NULL;
+    }
 }
 
     /* id_socket identifies which type of comunication has been established */

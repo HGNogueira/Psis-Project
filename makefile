@@ -1,26 +1,40 @@
-COMPFLAGS = gcc -Wall -c -o
-LINKFLAGS = gcc -Wall -o
+COMPFLAGS = gcc -g -c -o
+LINKFLAGS = gcc -g -o
+EXTRAFLAGS = -lpthread
 
 #FAZER make PARA COMPILAR e LINKAR##############################
-life3d-mpi: life3d-mpi.o $(LL_LIB_PATH)/linked_list.o $(HT_LIB_PATH)/hashtable.o
-	$(LINKFLAGS_MPI) $@ $^ $(EXTRA_FLAGS)
-
-life3d-mpi.o: new_ver.c $(LL_LIB_PATH)/linked_list.h $(HT_LIB_PATH)/hashtable.h
-	$(COMPFLAGS_MPI) $@ $<
+All: server gateway client
 ################################################################################
-#FAZER make serial PARA COMPILAR E LINKAR VERSAO SERIAL#########################
-serial: life3d
+gateway: gateway.o serverlist.o
+	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
+################################################################################
+server: server.o photolist.o phototransfer.o
+	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
 
-life3d: life3d.o $(LL_LIB_PATH)/linked_list.o $(HT_LIB_PATH)/hashtable.o
-	$(LINKFLAGS) $@ $^
-
-life3d.o: life3d.c $(LL_LIB_PATH)/linked_list.h $(HT_LIB_PATH)/hashtable.h
+server.o: server.c messages.h clientAPI.h phototransfer.h
 	$(COMPFLAGS) $@ $<
 ################################################################################
-#FAZER make clean PARA LIMPAR APENAS OS FICHEIROS DO PROGRAMA###################
-clean:
-	rm -f life3d-mpi *.o
-#FAZER make clean_all PARA LIMPAR APP FILES E A BIBLIOTECAS#####################
-clean_all:
-	rm -f life3d-mpi life3d *.o  $(LL_LIB_PATH)/*.o $(HT_LIB_PATH)/*.o
+client: client.o clientAPI.o phototransfer.o
+	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
+
+client.o: client.c messages.h clientAPI.h phototransfer.h
+	$(COMPFLAGS) $@ $<
 ################################################################################
+clientAPI.o: clientAPI.c clientAPI.h
+	$(COMPFLAGS) $@ $<
+photolist.o: photolist.c photolist.h
+	$(COMPFLAGS) $@ $<
+serverlist.o: serverlist.c serverlist.h
+	$(COMPFLAGS) $@ $<
+phototransfer.o: phototransfer.c phototransfer.h
+	$(COMPFLAGS) $@ $<
+keywordlist.o: keywordlist.c keywordlist.h
+	$(COMPFLAGS) $@ $<
+idlist.o: idlist.c idlist.h
+	$(COMPFLAGS) $@ $<
+
+test: keywordlist.o idlist.o
+	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
+################################################################################
+clean:
+	rm -f gateway server client *.o
