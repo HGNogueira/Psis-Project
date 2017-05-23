@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include "photolist.h"
+#include "phototransfer.h"
 #include "messages.h"
 #define S_PORT 3005
 
@@ -49,8 +50,10 @@ tasklist_t *tasklist;
 photolist_t *photolist;
 sem_t task_sem;
 sem_t update_sem; //semaphore used to block update routine until peer becomes up to date
+pthread_mutex_t update_mutex;
 int pson_run = 0;
 pthread_t pson_thread = 0;
+int reconnected = 0; //indicates if server is in reconnected status (lost previous father connection)
 /******************************************************************************/
 
 void sigint_handler(int n){
@@ -72,6 +75,7 @@ void *get_updated(void *thread_s){
     photolist_t *tmp_photolist;
     tasklist_t *tmp_tasklist, *current_node;
 
+
     pthread_mutex_lock(&task_mutex);
     if(tasklist == NULL){
         /* create dummy task, serves as a bridge between tasks to be seen as 
@@ -89,15 +93,15 @@ void *get_updated(void *thread_s){
 	while(1){
 		if( (err = recv(s, &recv_task, sizeof(task_t), 0)) == -1){
 			perror("get_update: recv error");
-            send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
-            continue;
+            //update procedure failed, shutdown server
+            exit(EXIT_FAILURE);
 		}
 		else if(err == 0){ //client disconnected
 			printf("Peer disconnected from this server while updating me...\n");
-
-			//close(s);
-			return NULL;
+            pthread_mutex_unlock(&update_mutex);
+            pthread_exit(NULL);
 		}
+        pthread_mutex_lock(&update_mutex); /* Can't update while getting updated/reconnected */
 		printf("Received new task from Updator\n");
         tmp_tasklist = (tasklist_t *) malloc(sizeof(tasklist_t));
         /* process new task */
@@ -107,16 +111,16 @@ void *get_updated(void *thread_s){
                 updated = 1;
                 close(s);
                 sem_post(&update_sem);
+                pthread_mutex_unlock(&update_mutex);
                 return NULL;
-            case -1:
-                printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
-
-                /* delete photo */
+            case -1: //this case should never be acted with this architecure
+                printf("get_updated: asked to delete photo while getting updated!\n");
 
                 break;
             case 0:
                 printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
 
+                /***** MISSING IMPLEMENTATION ******/
                 /* add keyword to keyword list */
 
                 break;
@@ -124,13 +128,50 @@ void *get_updated(void *thread_s){
                 printf("Adding new photo with name=%s\n", recv_task.photo_name);
                 /* add photo to photolist */
                 retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
+                if(retval == 1 && reconnected == 1){
+                    /* Reconnected peer is confirmed to be back in the chain
+                     * no information lost */
+                    free(tmp_tasklist);
+                    acknowledge = 0;
+                    send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
+                    close(s);
+                    reconnected = 0;
+                    printf("I am reconnected\n");
+                    pthread_mutex_unlock(&update_mutex);
+                    pthread_exit(NULL);
+                }
+                if(retval == 0){
+                    acknowledge = 2;
+                    send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
+                     
+                    retval = phototransfer_recv(s, recv_task.photo_name);
+                    if(retval != 0){
+                        printf("get_updated: couldn't receive new photo with name %s\n", recv_task.photo_name);
+                        photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size,  &photolock);
+                        acknowledge = 1;
+                        send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
+
+                        free(tmp_tasklist);
+                        pthread_mutex_unlock(&update_mutex);
+                        continue;
+                    }
+                }
+                if(retval == 1){
+                    free(tmp_tasklist);
+                    acknowledge = 1;
+                    send(s, &acknowledge, sizeof(acknowledge), 0);
+                    pthread_mutex_unlock(&update_mutex);
+                    continue;
+                }
 
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
 
                 break;
             default:
                 printf("Strange task type (%d) while getting up to date... danger of unobtained synchronization...", recv_task.type);
+                send(s, &acknowledge, sizeof(acknowledge), 1); //for now acknowledge is always 1
                 free(tmp_tasklist);
+                pthread_mutex_unlock(&update_mutex);
                 continue;
         }
         /* add task to tasklist as previous task */
@@ -139,13 +180,15 @@ void *get_updated(void *thread_s){
         tmp_tasklist->task.type = recv_task.type;
         tmp_tasklist->task.ID = recv_task.ID;
         tmp_tasklist->task.photo_id = recv_task.photo_id;
+        tmp_tasklist->task.photo_size = recv_task.photo_size;
 
         tmp_tasklist->next = current_node;
-        tmp_tasklist->prev = NULL;
+        tmp_tasklist->prev = current_node->prev;
         current_node->prev = tmp_tasklist;
         current_node = tmp_tasklist;
 
         send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
+        pthread_mutex_unlock(&update_mutex);
     }
 }
 
@@ -159,11 +202,11 @@ void update_peer(void *thread_s){
     int deleter_dim = 0, stop = 0;
     task_t termination_task;
 
+    pthread_mutex_lock(&update_mutex); /* Can't update while getting updated/reconnected */
+    deleter_list = NULL;
     pthread_mutex_lock(&task_mutex);
     update_list = tasklist;
     pthread_mutex_unlock(&task_mutex);
-
-    deleter_list = NULL;
 
     while(1){
         /* if its the last item on tasklist */
@@ -189,6 +232,7 @@ void update_peer(void *thread_s){
             send(s, &termination_task, sizeof(task_t), 0);
             printf("Peer is up to date\n");
             close(s);
+            pthread_mutex_unlock(&update_mutex);
             return;
         }
 
@@ -198,6 +242,7 @@ void update_peer(void *thread_s){
         }
         if(update_list->task.type == 2){ //don't print task
             update_list = update_list->prev;
+
             continue;
         }
         if(update_list->task.type == -1){//no need to send delete, save info for later
@@ -229,6 +274,10 @@ void update_peer(void *thread_s){
                 stop = 0;
                 continue;
             }
+
+            if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
+                perror("send error");
+            }
         }
 
         if(update_list->task.type == 1){
@@ -253,23 +302,44 @@ void update_peer(void *thread_s){
                 stop = 0;
                 continue;
             }
+            if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
+                perror("send error");
+            }
+            pthread_mutex_unlock(&update_mutex);
+            if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
+                if(deleter_list != NULL)
+                    free(deleter_list);
+                close(s);
+                pthread_mutex_unlock(&update_mutex);
+                return;
+            }
+            if(acknowledge == 2){//start transfering photo
+                phototransfer_send(s, update_list->task.photo_name);
+            }
         }
 
-        if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
-                perror("send error");
-        }
         /* wait for acknowledge */
         if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
             if(deleter_list != NULL)
                 free(deleter_list);
             close(s);
+            pthread_mutex_unlock(&update_mutex);
             return;
         }
         sleep(1);
         
-        /* remain trying to send the same task if acknowledge != 1 */
-        if(acknowledge == 1)
-            update_list = update_list->prev;
+        if(acknowledge == 0){//no need to continue
+            /* free deleter_list array memory */
+            /*don't erase information since we might not have gone to the bottom */
+            if(deleter_list != NULL)
+                free(deleter_list);
+            printf("Peer is back in the information chain\n");
+            close(s);
+            pthread_mutex_unlock(&update_mutex);
+            return;
+        }
+        update_list = update_list->prev;
+        pthread_mutex_unlock(&update_mutex);
     }
 
 }
@@ -283,11 +353,36 @@ void pson_interact(void *thread_s){
     
     /* semaphore wait */
     sem_wait(&task_sem);
+    pthread_mutex_lock(&task_mutex);
     tasklist_t *auxlist = tasklist;
+    pthread_mutex_unlock(&task_mutex);
 
     while(pson_run){
+        sleep(1);
         printf("New task for my son\n");
         send(s, &(auxlist->task), sizeof(task_t), 0);
+
+        if(auxlist->task.type == 1){
+            if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
+                close(s);
+                return;
+            }
+            if(acknowledge == 2){//start transfering photo
+                phototransfer_send(s, auxlist->task.photo_name);
+
+                if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
+                    close(s);
+                    return;
+                }
+                /* semaphore: wait for new tasks */
+                sem_wait(&task_sem);
+                auxlist = auxlist->next;
+                continue;
+            }
+            sem_wait(&task_sem);
+            auxlist = auxlist->next;
+            continue;
+        }
 
         if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
             close(s);
@@ -339,7 +434,7 @@ void *pfather_interact(void *dummy){
         sem_post(&update_sem);
     }
 
-    if(updated == 0){
+    if(updated == 0){// || reconnected ==1){
         printf("Contacting father in order to get updated\n");
         if(  (s_up = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
             perror("Update socket");
@@ -352,21 +447,18 @@ void *pfather_interact(void *dummy){
             perror("Update connect");
             pfather_interact(NULL); //go back to trying to connect with new father
         }
-        send(s_up, &updatepeer, sizeof(updatepeer), 0);
-
-
+        send(s_up, &updatepeer, sizeof(updatepeer), 0);//indicate you wish to get updated
 
         //initiate new father peer interaction thread MISSING GUARD######
 
         pthread_mutex_lock(&thread_mutex);
-        thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
-        thread_head = thread_list;
         thread_list->s = s_up;
         if( pthread_create(&(thread_list->thread_id) , NULL, get_updated, &(thread_list->s)) != 0){
             printf("Error creating a new thread\n");
         }
 
         thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
+        thread_list = thread_list->next;
         pthread_mutex_unlock(&thread_mutex);
     }
 
@@ -397,6 +489,7 @@ void *pfather_interact(void *dummy){
 			printf("Father peer disconnected from this server\n");
 			gw_msg.type = -1; //indicar à gateway que pai desconectou-se
 			gw_msg.ID = ID;
+            reconnected = 1;  //status changes to reconnected
 			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
 				perror("GW contact");
 			}
@@ -408,7 +501,10 @@ void *pfather_interact(void *dummy){
 
         acknowledge = 1; //in case recv_task.ID=ID I know I can go to next task
         /* only process task if this peer isn't the one responsible for it */
-        if(recv_task.ID != ID ){
+        if(ID == 0){//count number of loops task is taking around the list
+            recv_task.turns++;
+        }
+        if(recv_task.ID != ID && recv_task.turns < 2){
             /* process new task */
             tmp_tasklist = (tasklist_t*) malloc(sizeof(tasklist_t));
             switch(recv_task.type){
@@ -435,6 +531,27 @@ void *pfather_interact(void *dummy){
                     strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
                     /* add photo to photolist */
                     retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
+                    if(retval == 1){//photo already in list, stop propagation
+                        free(tmp_tasklist);
+                        acknowledge = 1;
+                        send(s, &acknowledge, sizeof(acknowledge), 0);
+                        continue;
+                    }
+                    if(retval == 0){
+                        acknowledge = 2;
+                        send(s, &acknowledge, sizeof(acknowledge), 0);
+                     
+                        retval = phototransfer_recv(s, recv_task.photo_name);
+                        if(retval != 0){
+                            printf("get_updated: couldn't receive new photo with name %s\n", recv_task.photo_name);
+                            photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
+                            free(tmp_tasklist);
+                            acknowledge = 1;
+                            send(s, &acknowledge, sizeof(acknowledge), 0);
+                            continue;
+                        }
+                    }
+
                     break;
                 case 2:
                     if(photolist_print(&photolist, &photolock) == -1)
@@ -451,6 +568,8 @@ void *pfather_interact(void *dummy){
             tmp_tasklist->task.type = recv_task.type;
             tmp_tasklist->task.ID = recv_task.ID;
             tmp_tasklist->task.photo_id = recv_task.photo_id;
+            tmp_tasklist->task.photo_size;
+            tmp_tasklist->task.turns = recv_task.turns;
 
             /* insert tmp_list to head of task list */ 
             pthread_mutex_lock(&task_mutex);
@@ -520,6 +639,8 @@ void c_interact(void *thread_scl){
             case 1:
                 printf("Adding new photo with name %s\n", recv_task.photo_name);
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
+                
+                /* might be useful to check if name is occupied */
 
                 /* ask for photo_id from gateway */
                 gw_msg.type = 4;
@@ -532,6 +653,13 @@ void c_interact(void *thread_scl){
                 recv_task.photo_id = photo_id;
                 /* add photo to photolist */
                 retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
+
+                retval = phototransfer_recv(scl, recv_task.photo_name);
+                if(retval != 0){
+                    photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
+                    free(tmp_tasklist);
+                    continue;
+                }
 
                 break;
             case 2:
@@ -547,6 +675,11 @@ void c_interact(void *thread_scl){
         tmp_tasklist->task.type = recv_task.type;
         tmp_tasklist->task.ID = ID;
         tmp_tasklist->task.photo_id = recv_task.photo_id;
+        tmp_tasklist->task.photo_size = recv_task.photo_size;
+        if(ID != 0)
+            tmp_tasklist->task.turns = 0;
+        else
+            tmp_tasklist->task.turns = 1;
 
         /* insert tmp_list to head of task list */ 
         pthread_mutex_lock(&task_mutex);
@@ -697,7 +830,6 @@ int main(){
     pthread_mutex_init(&thread_mutex, NULL);
     pthread_mutex_lock(&thread_mutex);
 	thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
-	thread_head = thread_list;
     //initiate new father peer interaction thread
     if( pthread_create(&(thread_list->thread_id) , NULL, pfather_interact, NULL) != 0)
 				printf("Error creating a new thread\n");
@@ -707,6 +839,7 @@ int main(){
     pthread_mutex_unlock(&thread_mutex);
 
     sem_init(&update_sem, 0, 0); //initialize semaphore with value 0
+    pthread_mutex_init(&update_mutex, NULL);
     /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
 	rmt_addr_len = sizeof(struct sockaddr_in);
 	while(run){

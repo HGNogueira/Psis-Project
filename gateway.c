@@ -55,7 +55,7 @@ int run = 1;
 int sc, sp; // client side and server side socket descriptors
 serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
-uint64_t photo_id = 0; /*photos id counter
+uint64_t photo_id = 0; /*photos id counter */
 int n_peers = 0;   /* number of total peers */
 /********************************/
 
@@ -181,9 +181,10 @@ void *p_interact(void *rwlock){
             }
 
 			sendto(sp, &ID, sizeof(ID), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back ID information
-			ID++;
-			printf("New server available - addr=%s, port =%d\n", servers->address, servers->port);
+			printf("New server %d available - addr=%s, port =%d\n", ID, inet_ntoa(rmt_addr.sin_addr), gw_msg.port);
+
             printf("System contains %d peers total\n", n_peers);
+			ID++;
 		} else if(gw_msg.type == 2){   //server lost 1 connection
 			if(!(tmp_node = search_server(&servers, gw_msg.ID, rwlock)))
 				printf("Can't find server in list\n");
@@ -202,7 +203,7 @@ void *p_interact(void *rwlock){
         }
         else if(gw_msg.type ==5 ){/* peer searching for father */
             if(!(tmp_node = search_father(&servers, gw_msg.ID, rwlock))){
-                printf("Peer can't be found on list, cannot attribute father peer\n");
+                printf("Peer %d can't be found on list, cannot attribute father peer\n", gw_msg.ID);
                 continue;
             }
             printf("Peer with port %d will connect to peer with port %d\n", tmp_node->next->port, tmp_node->port);
