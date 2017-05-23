@@ -115,8 +115,8 @@ void *get_updated(void *thread_s){
                 return NULL;
             case -1: //this case should never be acted with this architecure
                 printf("get_updated: asked to delete photo while getting updated!\n");
-
                 break;
+
             case 0:
                 printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
 
@@ -156,14 +156,6 @@ void *get_updated(void *thread_s){
                         continue;
                     }
                 }
-                if(retval == 1){
-                    free(tmp_tasklist);
-                    acknowledge = 1;
-                    send(s, &acknowledge, sizeof(acknowledge), 0);
-                    pthread_mutex_unlock(&update_mutex);
-                    continue;
-                }
-
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
 
                 break;
