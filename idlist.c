@@ -1,18 +1,16 @@
 #include "idlist.h"
 
-// RETURNS 1 if ID already in list
-// RETURNS 0 if ID inserted in list
 int IDlist_insert(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
 	id_node *a, *p;
 	for(a = (id_node*)hp, p = *hp; p != NULL && id > p->id; a = p, p = p->next)
 		;
     if(p != NULL && id == p->id)
-        return 1;
+        return 0;
     id_node  *n = malloc(sizeof *n);
 	n->id = id;
 	n->next = p;
 	a->next = n;
-    return 0;
+    return 1;
 }
 
 void IDlist_print(id_node *h, pthread_rwlock_t *rwlock){
@@ -41,7 +39,7 @@ id_node *IDlist_match(id_node *hp, unsigned id, pthread_rwlock_t *rwlock){
 	return NULL;
 }
 
-id_node *IDlist_Specialmatch(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
+static id_node *IDlist_Specialmatch(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
 	id_node *prev = (id_node *)hp;
 	id_node *aux = *hp;
 	for(; aux != NULL && id > aux->id; prev = aux, aux = aux->next)
@@ -51,9 +49,9 @@ id_node *IDlist_Specialmatch(id_node **hp, unsigned id, pthread_rwlock_t *rwlock
 	return id == aux->id ? prev : NULL;
 }
 
-void IDlist_del_el(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
+int IDlist_del_el(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
 	id_node *prev;
-	if((prev = IDlist_Specialmatch(hp, id, rwlock)) != NULL) // REMOVE ELEMENT if true
+	if((prev = IDlist_Specialmatch(hp, id, rwlock)) != NULL){ // REMOVE ELEMENT if true
 		if(!prev->next->next){ // List at the end or with only 1 element
 			id_node *aux = prev->next;
 			prev->next = NULL;
@@ -69,4 +67,7 @@ void IDlist_del_el(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
 			prev->next = prev->next->next;
 			free(aux);
 		}
+		return 1;
+	}
+	return 0;
 }
