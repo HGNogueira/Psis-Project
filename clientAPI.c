@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+#include "phototransfer.h"
 #include "clientAPI.h" /* include header with function prototypes */
 #include "messages.h"  /* message description headers */
 
@@ -43,8 +44,6 @@ void update_peer_loss(){
     close(s_gw);
     return;
 }
-
-
 
 /*
  *  Function:
@@ -153,7 +152,29 @@ int gallery_connect(char *host, in_port_t port){
  */
 
 uint32_t gallery_add_photo(int peer_socket, char *file_name){
-    return 0;
+    task_t task;
+    uint32_t photo_id;
+
+    task.type = 1; //type = 1 means
+    strcpy(task.photo_name, file_name);
+
+    /* apply for adding a new photo */
+    send(peer_socket, (void *) &task, sizeof(task), 0);
+
+    /* call phototransfer_send function to send photo
+     * -1 as arguments indicates client is calling (vs peer) */
+    if(phototransfer_send(peer_socket, task.photo_name, -1) != 0){
+        printf("Failed sending the photo %s\n", task.photo_name);
+    }
+
+    if(recv(peer_socket, &photo_id, sizeof(photo_id), 0) <= 0){
+        printf("galery_add_photo: Peer connection failure, exiting\n");
+        update_peer_loss();
+        exit(EXIT_FAILURE);
+    }
+    printf("Successfully updloaded photo %s\n", file_name);
+
+    return photo_id;
 }
 
 /*
