@@ -48,7 +48,6 @@ sem_t update_sem; //semaphore used to block update routine until peer becomes up
 pthread_mutex_t update_mutex;
 int pson_run = 0;
 pthread_t pson_thread = 0;
-int reconnected = 0; //indicates if server is in reconnected status (lost previous father connection)
 /******************************************************************************/
 
 void sigint_handler(int n){
@@ -111,6 +110,8 @@ void *get_updated(void *thread_s){
                 return NULL;
             case -1: //this case should never be acted with this architecure
                 printf("get_updated: asked to delete photo while getting updated!\n");
+                if(photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock) == 0)
+                    printf("Deleted photo %s\n", recv_task.photo_name);
                 break;
 
             case 0:
@@ -126,14 +127,13 @@ void *get_updated(void *thread_s){
                 printf("Adding new photo with name=%s\n", recv_task.photo_name);
                 /* add photo to photolist */
                 retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
-                if(retval == 1 && reconnected == 1){
+                if(retval == 1){
                     /* Reconnected peer is confirmed to be back in the chain
                      * no information lost */
                     free(tmp_tasklist);
                     acknowledge = 0;
                     send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
                     close(s);
-                    reconnected = 0;
                     printf("I am reconnected\n");
                     pthread_mutex_unlock(&update_mutex);
                     pthread_exit(NULL);
@@ -153,14 +153,6 @@ void *get_updated(void *thread_s){
                         pthread_mutex_unlock(&update_mutex);
                         continue;
                     }
-                }
-
-                if(retval == 1){
-                    free(tmp_tasklist);
-                    acknowledge = 1;
-                    send(s, &acknowledge, sizeof(acknowledge), 0);
-                    pthread_mutex_unlock(&update_mutex);
-                    continue;
                 }
 
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
@@ -249,11 +241,11 @@ void update_peer(void *thread_s){
             continue;
         }
         if(update_list->task.type == -1){//no need to send delete, save info for later
+            send(s, &(update_list->task), sizeof(task_t), 0);//send just in case;
             deleter_dim++;
             deleter_list = (tasklist_t**) realloc(deleter_list, sizeof(tasklist_t*)*deleter_dim);
             deleter_list[deleter_dim - 1] = update_list; //save pointer to tasklist
             update_list = update_list->prev;
-            continue;
         }
         if(update_list->task.type == 0){
             /*check if photo has been deleted, no need to pass task if so */
@@ -438,7 +430,7 @@ void *pfather_interact(void *dummy){
         sem_post(&update_sem);
     }
 
-    if(updated == 0){// || reconnected ==1){
+    if(1){// || reconnected ==1){
         printf("Contacting father in order to get updated\n");
         s_up = (int*) malloc(sizeof(int));
         if(  (*s_up = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
@@ -486,7 +478,6 @@ void *pfather_interact(void *dummy){
 			printf("Father peer disconnected from this server\n");
 			gw_msg.type = -1; //indicar à gateway que pai desconectou-se
 			gw_msg.ID = ID;
-            reconnected = 1;  //status changes to reconnected
 			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
 				perror("GW contact");
 			}
