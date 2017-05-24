@@ -6,10 +6,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <stdio.h>
-<<<<<<< HEAD
 #include <unistd.h>
-=======
->>>>>>> lino
 
 #include "photolist.h"
 
@@ -30,11 +27,8 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     auxphoto->next = NULL;
     auxphoto->prev = NULL;
 
-<<<<<<< HEAD
     // must be wrlock to avoid some other thread writing first node simultaneously 
-=======
-    // must be wrlock to avoid some other thread writing first node simultaneously
->>>>>>> lino
+
     pthread_rwlock_wrlock(rwlock);
     if(*photos == NULL){
         *photos = auxphoto;

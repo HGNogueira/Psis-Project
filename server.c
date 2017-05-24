@@ -38,11 +38,7 @@ typedef struct task_node{
 
 /****************** GLOBAL VARIABLES ******************************************/
 int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
-<<<<<<< HEAD
 pthread_mutex_t gw_mutex;      
-=======
-pthread_mutex_t gw_mutex;
->>>>>>> lino
 pthread_mutex_t thread_mutex;
 pthread_mutex_t task_mutex;
 pthread_rwlock_t photolock;
@@ -397,7 +393,6 @@ void pson_interact(void *thread_s){
         /* semaphore: wait for new tasks */
         sem_wait(&task_sem);
 
->>>>>>> lino
         auxlist = auxlist->next;
     }
     printf("Closing old pson\n");
@@ -420,6 +415,7 @@ void *pfather_interact(void *dummy){
 
     /* demand gateway a new father peer */
     gw_msg.ID = ID;
+    gw_msg.type = 5;
 
     pthread_mutex_lock(&gw_mutex);
     addr_len = sizeof(gw_addr);
@@ -741,51 +737,6 @@ void *id_socket(void *thread_s){
         pson_interact(thread_s);
         return NULL;
     }
-    if( rmt_identifier == 3){ //gateway is just checking if server is alive
-        close(s);
-        return NULL;
-    }
-}
-
-    /* id_socket identifies which type of comunication has been established */
-void *id_socket(void *thread_s){
-    int err;
-    int rmt_identifier;
-    message_gw gw_msg;
-    int s = (int) *( (int *) thread_s);
-
-    if( (err = recv(s, &rmt_identifier, sizeof(rmt_identifier), 0)) == -1){
-			perror("id_socket: recv error");
-			pthread_exit(NULL);
-    } else if(err == 0){ //client disconnected
-			printf("Unidentified remote connection disconnected from this peer\n");
-			close(s);
-			return(NULL);
-	}
-
-    if( rmt_identifier == 0){ //approached by new client
-        c_interact(thread_s);
-        return NULL;
-    } else if( rmt_identifier == 1){ //peer requires updating
-        if(updated)
-            sem_post(&update_sem);
-        sem_wait(&update_sem);
-        update_peer(thread_s); //will start updating peer with the existing content
-        return NULL;
-    } else if( rmt_identifier == 2){ //peer joins the chain
-        if(pson_run != 0){
-            printf("New pson, make other pson stop thread\n");
-            pson_run = 0;
-            sem_post(&task_sem);
-            void *retval;
-            pthread_join(pson_thread, &retval);
-        }
-        pson_thread = pthread_self();
-        pson_run = 1;
-            
-        pson_interact(thread_s);
-        return NULL;
-    } 
     if( rmt_identifier == 3){ //gateway is just checking if server is alive
         close(s);
         return NULL;
