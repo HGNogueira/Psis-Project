@@ -137,7 +137,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     }
 }
 
-    /* returns 0 if success, -1 if can't find photo */
+    /* returns 1 if success, 0 if can't find photo, -1 if error */
 int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *rwlock){
     photolist_t *searchnode;
     int retval;
@@ -150,7 +150,7 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
     pthread_rwlock_rdlock(rwlock);
     if(*photos == NULL){
         pthread_rwlock_unlock(rwlock);
-        return -1;
+        return 0;
     }
 
     searchnode = *photos;
@@ -159,7 +159,7 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
             pthread_rwlock_wrlock(rwlock);
             if(searchnode == NULL){
                 pthread_rwlock_unlock(rwlock);
-                return -1;
+                return 0;
             }
 
             if(searchnode->next != NULL){
@@ -169,13 +169,16 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
             strcat(filename, searchnode->photo_name);
             if(unlink(filename) == -1){
                 perror("photolist_delete (unlink)");
+                *photos = searchnode->next;
+                free(searchnode);
+                pthread_rwlock_unlock(rwlock);
+                return -1;
             }
 
-            free(searchnode);
             *photos = searchnode->next;
-
+            free(searchnode);
             pthread_rwlock_unlock(rwlock);
-            return 0;
+            return 1;
     }
     searchnode = searchnode->next;
     while(searchnode != NULL){
@@ -184,7 +187,7 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
             pthread_rwlock_wrlock(rwlock);
             if(searchnode == NULL){
                 pthread_rwlock_unlock(rwlock);
-                return -1;
+                return 0;
             }
 
             if(searchnode->prev != NULL){
@@ -196,16 +199,18 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
             strcat(filename, searchnode->photo_name);
             if(unlink(filename) == -1){
                 perror("photolist_delete (unlink)");
+                free(searchnode);
+                return -1;
             }
             free(searchnode);
 
             pthread_rwlock_unlock(rwlock);
-            return 0;
+            return 1;
         }
         searchnode = searchnode->next;
     }
     pthread_rwlock_unlock(rwlock);
-    return -1;
+    return 0;
 }
 
 int photolist_print(photolist_t **photos, pthread_rwlock_t *rwlock){
