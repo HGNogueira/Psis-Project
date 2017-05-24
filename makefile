@@ -8,7 +8,7 @@ All: server gateway client
 gateway: gateway.o serverlist.o
 	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
 ################################################################################
-server: server.o photolist.o phototransfer.o
+server: server.o photolist.o phototransfer.o keywordlist.o idlist.o
 	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
 
 server.o: server.c messages.h clientAPI.h phototransfer.h
