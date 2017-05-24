@@ -4,20 +4,29 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include "phototransfer.h"
+#include <inttypes.h>
+#include <string.h>
 
 #define BUFSIZE 1024
 
     /* transfers photo through socket to process calling photo_recv
      * on success returns 0
      * photo_size is calculated and passed through pointer */
-int phototransfer_send(int s, char *photo_name){
+int phototransfer_send(int s, char *photo_name, uint64_t photo_id){
     FILE * f;
     char buffer[BUFSIZE];
     ssize_t photo_size, remain_data;
     ssize_t len;
     ssize_t tosend;
+    char filename[60];
 
-    if((f = fopen(photo_name, "r") ) == NULL){
+    filename[0] = '\0';
+    if(photo_id != -1){//-1 means client is sending
+        sprintf(filename, "./%" PRIu64, photo_id);
+    }
+    strcat(filename, photo_name);
+
+    if((f = fopen(filename, "r") ) == NULL){
         perror("phototransfer_send (fopen):\n");
         return -1;
     }
@@ -42,11 +51,15 @@ int phototransfer_send(int s, char *photo_name){
 }
 
 
-int phototransfer_recv(int s, char *photo_name){
+int phototransfer_recv(int s, char *photo_name, uint64_t photo_id){
     FILE *f;
     ssize_t photo_size, remain_data;
     char buffer[BUFSIZE];
     ssize_t len;
+    char filename[60];
+
+    sprintf(filename, "./%" PRIu64, photo_id);
+    strcat(filename, photo_name);
 
     if(recv(s, &photo_size, sizeof(ssize_t), 0) <= 0){
         printf("phototransfer_recv: socket disconnected while receiving photo_size\n");
@@ -55,7 +68,7 @@ int phototransfer_recv(int s, char *photo_name){
 
     printf("Will receive a photo with size %u\n", (unsigned)photo_size);
 
-    if((f = fopen(photo_name, "w")) == NULL){
+    if((f = fopen(filename, "w")) == NULL){
         perror("phototransfer_recv (fopen):");
         return -1;
     }
