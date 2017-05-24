@@ -21,13 +21,6 @@
 #define S_PORT 3005
 
 /************************ Functional structures for server.c ******************/
-    /* list of threads to easily initiate threads willingly */
-struct pthread_node{
-	pthread_t thread_id;
-	int s;
-	struct pthread_node *next;
-};
-
 typedef struct task_node{
     task_t task;
     struct task_node *prev;
@@ -40,7 +33,6 @@ typedef struct task_node{
 /****************** GLOBAL VARIABLES ******************************************/
 int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
 pthread_mutex_t gw_mutex;      
-pthread_mutex_t thread_mutex;
 pthread_mutex_t task_mutex;
 pthread_rwlock_t photolock;
 pthread_rwlock_t keywordlock;
@@ -67,7 +59,6 @@ void sigint_handler(int n){
      *
      * this process starts sequentally running every task given from more recent to older */
 void *get_updated(void *thread_s){
-    int s = (int) *((int *) thread_s);
 	int err;
     int acknowledge = 1;
     int retval;
@@ -77,7 +68,8 @@ void *get_updated(void *thread_s){
     socklen_t addr_len;
     photolist_t *tmp_photolist;
     tasklist_t *tmp_tasklist, *current_node;
-
+    int s = (int) *((int *) thread_s);
+    free(thread_s);
 
     pthread_mutex_lock(&task_mutex);
     if(tasklist == NULL){
@@ -201,13 +193,14 @@ void *get_updated(void *thread_s){
 
     /* this thread function implements the server updating routine */
 void update_peer(void *thread_s){
-    int s = (int) *((int*) thread_s);
     int err, i;
     int acknowledge;
     tasklist_t *update_list, *auxlist;
     tasklist_t **deleter_list;
     int deleter_dim = 0, stop = 0;
     task_t termination_task;
+    int s = (int) *((int*) thread_s);
+    free(thread_s);
 
     pthread_mutex_lock(&update_mutex); /* Can't update while getting updated/reconnected */
     deleter_list = NULL;
@@ -357,9 +350,10 @@ void update_peer(void *thread_s){
     /* this thread function implements normal son-peer interaction */
     /* it propagates the last task to its son */
 void pson_interact(void *thread_s){
-    int s = (int) *((int*) thread_s);
     int err;
     int acknowledge; //indicates if son peer wants next or previous item on list
+    int s = (int) *((int*) thread_s);
+    free(thread_s);
 
     /* semaphore wait */
     sem_wait(&task_sem);
@@ -409,7 +403,8 @@ void pson_interact(void *thread_s){
 
     /* this thread function implements father-peer interaction */
 void *pfather_interact(void *dummy){
-    int s, s_up; //socket s for father, s_up for update
+    int s, *s_up; //socket s for father, s_up for update
+    pthread_t thread_id;
     int fatherpeer = 2, updatepeer = 1; //constants to contact father and updator
     int retval;
     int err;
@@ -445,30 +440,23 @@ void *pfather_interact(void *dummy){
 
     if(updated == 0){// || reconnected ==1){
         printf("Contacting father in order to get updated\n");
-        if(  (s_up = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
+        s_up = (int*) malloc(sizeof(int));
+        if(  (*s_up = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
             perror("Update socket");
             exit(EXIT_FAILURE);
         }
 
-        if( connect(s_up, (const struct sockaddr *) &peer_addr, sizeof(struct sockaddr_in)) == -1){
+        if( connect(*s_up, (const struct sockaddr *) &peer_addr, sizeof(struct sockaddr_in)) == -1){
             gw_msg.type = -1;
             sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
             perror("Update connect");
             pfather_interact(NULL); //go back to trying to connect with new father
         }
-        send(s_up, &updatepeer, sizeof(updatepeer), 0);//indicate you wish to get updated
+        send(*s_up, &updatepeer, sizeof(updatepeer), 0);//indicate you wish to get updated
 
-        //initiate new father peer interaction thread MISSING GUARD######
-
-        pthread_mutex_lock(&thread_mutex);
-        thread_list->s = s_up;
-        if( pthread_create(&(thread_list->thread_id) , NULL, get_updated, &(thread_list->s)) != 0){
+        if( pthread_create(&thread_id , NULL, get_updated,s_up) != 0){
             printf("Error creating a new thread\n");
         }
-
-        thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
-        thread_list = thread_list->next;
-        pthread_mutex_unlock(&thread_mutex);
     }
 
 
@@ -603,7 +591,6 @@ void *pfather_interact(void *dummy){
 
     /* this thread function implements to client-peer interaction */
 void c_interact(void *thread_scl){
-	int scl = (int) *((int *) thread_scl);
 	int err;
     int retval;
     int photo_id;
@@ -612,6 +599,8 @@ void c_interact(void *thread_scl){
     socklen_t addr_len;
     tasklist_t * tmp_tasklist;
     photolist_t *tmp_photolist;
+	int scl = (int) *((int *) thread_scl);
+    free(thread_scl);
 
 	while(1){
 		if( (err = recv(scl, &recv_task, sizeof(task_t), 0)) == -1){
@@ -767,6 +756,8 @@ int main(){
     message_gw gw_msg;
 	char fread_buff[50];
 	int port;
+    pthread_t thread_id;
+    int *sthread;
 	struct sigaction act_INT, act_SOCK;
 	socklen_t addr_len;
 
@@ -848,42 +839,28 @@ int main(){
     pthread_rwlock_init(&photolock, NULL);
     pthread_rwlock_init(&keywordlock, NULL);
 
-    pthread_mutex_init(&thread_mutex, NULL);
-    pthread_mutex_lock(&thread_mutex);
-	thread_list = (struct pthread_node *) malloc(sizeof(struct pthread_node));
     //initiate new father peer interaction thread
-    if( pthread_create(&(thread_list->thread_id) , NULL, pfather_interact, NULL) != 0)
+    if( pthread_create(&thread_id , NULL, pfather_interact, NULL) != 0)
 				printf("Error creating a new thread\n");
-
-    thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
-    thread_list = thread_list->next;
-    pthread_mutex_unlock(&thread_mutex);
 
     sem_init(&update_sem, 0, 0); //initialize semaphore with value 0
     pthread_mutex_init(&update_mutex, NULL);
     /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
 	rmt_addr_len = sizeof(struct sockaddr_in);
 	while(run){
-		if( (aux_s = accept(s, (struct sockaddr *) &rmt_addr, &rmt_addr_len)) != -1){
-            pthread_mutex_lock(&thread_mutex);
-            thread_list->s = aux_s;
+        sthread = (int*) malloc(sizeof(int));
+		if( (*sthread = accept(s, (struct sockaddr *) &rmt_addr, &rmt_addr_len)) != -1){
 
             //initiate thread to identify and proceed with interaction
-			if( pthread_create(&(thread_list->thread_id) , NULL, id_socket, &(thread_list->s)) != 0)
+			if( pthread_create(&thread_id, NULL, id_socket,sthread) != 0)
 				printf("Error creating a new thread\n");
 
-
-			thread_list->next = (struct pthread_node *) malloc(sizeof(struct pthread_node));
-			thread_list = thread_list->next;
-            pthread_mutex_unlock(&thread_mutex);
 		} else{
 			perror("accept");
 			//exit(EXIT_FAILURE):  //não sair para não interromper restantes threads
 
 		}
 	}
-
-	/* close thread_list */
 
 	close(s);
 	exit(EXIT_SUCCESS);
