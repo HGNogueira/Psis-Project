@@ -61,7 +61,7 @@ int main(){
                 printf("You want to add a keyword. Type keyword:");
                 scanf("%s", keyword);
                 printf("Type the photo ID:");
-                scanf("%d", &photo_id);
+                scanf("%u", &photo_id);
                 task.photo_id = (uint64_t) photo_id; //use task type to transf id
                 strcpy(task.keyword, keyword);
 
@@ -82,6 +82,9 @@ int main(){
                 continue;
             case 2:
                 printf("Peers will print their lists\n");
+                break;
+            case 3:
+                printf("Peers will print their keyword lists\n");
                 break;
             default:
                 printf("Unknown routine for task with type %d\n", task_type);
