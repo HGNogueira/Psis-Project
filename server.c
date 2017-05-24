@@ -89,7 +89,7 @@ void *get_updated(void *thread_s){
 		if( (err = recv(s, &recv_task, sizeof(task_t), 0)) == -1){
 			perror("get_update: recv error");
             //update procedure failed, shutdown server
-            exit(EXIT_FAILURE);
+            pthread_exit(NULL);
 		}
 		else if(err == 0){ //client disconnected
 			printf("Peer disconnected from this server while updating me...\n");
@@ -109,9 +109,15 @@ void *get_updated(void *thread_s){
                 pthread_mutex_unlock(&update_mutex);
                 return NULL;
             case -1: //this case should never be acted with this architecure
-                printf("get_updated: asked to delete photo while getting updated!\n");
-                if(photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock) == 0)
+                if(photolist_delete(&photolist, recv_task.photo_id, &photolock) == 0)
                     printf("Deleted photo %s\n", recv_task.photo_name);
+                else{
+                    free(tmp_tasklist);
+                    acknowledge = 1;
+                    send(s, &acknowledge, sizeof(acknowledge), 0);
+                    pthread_mutex_unlock(&update_mutex);
+                    continue;
+                }
                 break;
 
             case 0:
@@ -126,7 +132,7 @@ void *get_updated(void *thread_s){
             case 1:
                 printf("Adding new photo with name=%s\n", recv_task.photo_name);
                 /* add photo to photolist */
-                retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
+                retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, &photolock);
                 if(retval == 1){
                     /* Reconnected peer is confirmed to be back in the chain
                      * no information lost */
@@ -142,10 +148,10 @@ void *get_updated(void *thread_s){
                     acknowledge = 2;
                     send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
 
-                    retval = phototransfer_recv(s, recv_task.photo_name);
+                    retval = phototransfer_recv(s, recv_task.photo_name, recv_task.photo_id);
                     if(retval != 0){
                         printf("get_updated: couldn't receive new photo with name %s\n", recv_task.photo_name);
-                        photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size,  &photolock);
+                        photolist_delete(&photolist, recv_task.photo_id,  &photolock);
                         acknowledge = 1;
                         send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
 
@@ -173,10 +179,12 @@ void *get_updated(void *thread_s){
         tmp_tasklist->task.photo_id = recv_task.photo_id;
         tmp_tasklist->task.photo_size = recv_task.photo_size;
 
+        pthread_mutex_lock(&task_mutex);
         tmp_tasklist->next = current_node;
         tmp_tasklist->prev = current_node->prev;
         current_node->prev = tmp_tasklist;
         current_node = tmp_tasklist;
+        pthread_mutex_unlock(&task_mutex);
 
         send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
         pthread_mutex_unlock(&update_mutex);
@@ -309,7 +317,7 @@ void update_peer(void *thread_s){
                 return;
             }
             if(acknowledge == 2){//start transfering photo
-                phototransfer_send(s, update_list->task.photo_name);
+                phototransfer_send(s, update_list->task.photo_name, update_list->task.photo_id);
             }
         }
 
@@ -321,7 +329,6 @@ void update_peer(void *thread_s){
             pthread_mutex_unlock(&update_mutex);
             return;
         }
-        sleep(1);
 
        if(acknowledge == 0){//no need to continue
             /* free deleter_list array memory */
@@ -354,7 +361,6 @@ void pson_interact(void *thread_s){
     pthread_mutex_unlock(&task_mutex);
 
     while(pson_run){
-        sleep(1);
         printf("New task for my son\n");
         send(s, &(auxlist->task), sizeof(task_t), 0);
 
@@ -364,7 +370,7 @@ void pson_interact(void *thread_s){
                 return;
             }
             if(acknowledge == 2){//start transfering photo
-                phototransfer_send(s, auxlist->task.photo_name);
+                phototransfer_send(s, auxlist->task.photo_name, auxlist->task.photo_id);
 
                 if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
                     close(s);
@@ -498,7 +504,7 @@ void *pfather_interact(void *dummy){
             switch(recv_task.type){
                 case -1:
                     printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
-                    retval = photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
+                    retval = photolist_delete(&photolist, recv_task.photo_id, &photolock);
                     if(retval == -1){/*already deleted or non existant */
                         free(tmp_tasklist);
                         acknowledge = 1;
@@ -519,7 +525,7 @@ void *pfather_interact(void *dummy){
                     printf("Adding new photo with name=%s\n", recv_task.photo_name);
                     strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
                     /* add photo to photolist */
-                    retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
+                    retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, &photolock);
                     if(retval == 1){//photo already in list, stop propagation
                         free(tmp_tasklist);
                         acknowledge = 1;
@@ -530,10 +536,10 @@ void *pfather_interact(void *dummy){
                         acknowledge = 2;
                         send(s, &acknowledge, sizeof(acknowledge), 0);
 
-                        retval = phototransfer_recv(s, recv_task.photo_name);
+                        retval = phototransfer_recv(s, recv_task.photo_name, recv_task.photo_id);
                         if(retval != 0){
                             printf("get_updated: couldn't receive new photo with name %s\n", recv_task.photo_name);
-                            photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
+                            photolist_delete(&photolist, recv_task.photo_id, &photolock);
                             free(tmp_tasklist);
                             acknowledge = 1;
                             send(s, &acknowledge, sizeof(acknowledge), 0);
@@ -617,7 +623,7 @@ void c_interact(void *thread_scl){
         switch(recv_task.type){
             case -1:
                 printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
-                retval = photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
+                retval = photolist_delete(&photolist, recv_task.photo_id, &photolock);
                 if(retval == -1){/*already deleted or non existant */
                     free(tmp_tasklist);
                     continue;
@@ -647,11 +653,11 @@ void c_interact(void *thread_scl){
 
                 recv_task.photo_id = photo_id;
                 /* add photo to photolist */
-                retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, recv_task.photo_size, &photolock);
+                retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, &photolock);
 
-                retval = phototransfer_recv(scl, recv_task.photo_name);
+                retval = phototransfer_recv(scl, recv_task.photo_name, recv_task.photo_id);
                 if(retval != 0){
-                    photolist_delete(&photolist, recv_task.photo_id, recv_task.photo_size, &photolock);
+                    photolist_delete(&photolist, recv_task.photo_id, &photolock);
                     free(tmp_tasklist);
                     continue;
                 }
