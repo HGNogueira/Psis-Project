@@ -17,6 +17,7 @@
 #include "photolist.h"
 #include "phototransfer.h"
 #include "messages.h"
+#include "keywordlist.h"
 #define S_PORT 3005
 
 /************************ Functional structures for server.c ******************/
@@ -42,12 +43,14 @@ pthread_mutex_t gw_mutex;
 pthread_mutex_t thread_mutex;
 pthread_mutex_t task_mutex;
 pthread_rwlock_t photolock;
+pthread_rwlock_t keywordlock;
 struct sockaddr_in gw_addr;
 int ID;            //identificador de servidor atribuido pela gateway
 int updated = 0;   //identifica se peer já foi updated à cadeia de transferêcia de info
 struct pthread_node *thread_list, *thread_head;  //lista de threads
 tasklist_t *tasklist;
 photolist_t *photolist;
+keyword_node *keywords;
 sem_t task_sem;
 sem_t update_sem; //semaphore used to block update routine until peer becomes up to date
 pthread_mutex_t update_mutex;
@@ -120,6 +123,8 @@ void *get_updated(void *thread_s){
 
             case 0:
                 printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
+                strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
+                keywordlist_insert(&keywords, recv_task.keyword, recv_task.photo_id, &keywordlock);
 
                 /***** MISSING IMPLEMENTATION ******/
                 /* add keyword to keyword list */
@@ -242,9 +247,12 @@ void update_peer(void *thread_s){
             update_list = update_list->prev;
             continue;
         }
-        if(update_list->task.type == 2){ //don't print task
+        if(update_list->task.type == 2){ //don't print ids
             update_list = update_list->prev;
-
+            continue;
+        }
+        if(update_list->task.type == 3){ //don't print keywords
+            update_list = update_list->prev;
             continue;
         }
         if(update_list->task.type == -1){//no need to send delete, save info for later
@@ -523,6 +531,7 @@ void *pfather_interact(void *dummy){
                 case 0:
                     printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
                     strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
+                    keywordlist_insert(&keywords, recv_task.keyword, recv_task.photo_id, &keywordlock);
 
                     /* add keyword to keyword list */
 
@@ -557,6 +566,9 @@ void *pfather_interact(void *dummy){
                 case 2:
                     if(photolist_print(&photolist, &photolock) == -1)
                         printf("Empty list\n");
+                    break;
+                case 3:
+                    keywordlist_printAllData(keywords, &keywordlock);
                     break;
                 default:
                     printf("pfather_interact: Unknown routine for task with type %d\n", recv_task.type);
@@ -635,7 +647,7 @@ void c_interact(void *thread_scl){
             case 0:
                 printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
                 strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
-
+                keywordlist_insert(&keywords, recv_task.keyword, recv_task.photo_id, &keywordlock);
                 /* add keyword to keyword list */
 
                 break;
@@ -668,6 +680,9 @@ void c_interact(void *thread_scl){
             case 2:
                 if(photolist_print(&photolist, &photolock) == -1)
                     printf("Empty list\n");
+                break;
+            case 3:
+                keywordlist_printAllData(keywords, &keywordlock);
                 break;
             default:
                 printf("c_interact: Unknown routine for task with type %d\n", recv_task.type);
@@ -829,7 +844,9 @@ int main(){
     sem_init(&task_sem, 0, 0); //initialize semaphore with value 0
     //initialize photolist
     photolist = photolist_init(); 
+    keywords = KEYWORDLIST_INIT();
     pthread_rwlock_init(&photolock, NULL);
+    pthread_rwlock_init(&keywordlock, NULL);
 
     pthread_mutex_init(&thread_mutex, NULL);
     pthread_mutex_lock(&thread_mutex);
