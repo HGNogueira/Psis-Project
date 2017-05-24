@@ -121,7 +121,7 @@ void *get_updated(void *thread_s){
                 break;
 
             case 0:
-                printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
+                printf("Adding keyword to photo with id=%"PRIu32"\n", recv_task.photo_id);
                 strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
                 keywordlist_insert(&keywords, recv_task.keyword, recv_task.photo_id, &keywordlock);
 
@@ -503,7 +503,7 @@ void *pfather_interact(void *dummy){
             tmp_tasklist = (tasklist_t*) malloc(sizeof(tasklist_t));
             switch(recv_task.type){
                 case -1:
-                    printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
+                    printf("Deleting photo with id=%"PRIu32"\n", recv_task.photo_id);
                     retval = photolist_delete(&photolist, recv_task.photo_id, &photolock);
                     if(retval == -1){/*already deleted or non existant */
                         free(tmp_tasklist);
@@ -514,7 +514,7 @@ void *pfather_interact(void *dummy){
 
                     break;
                 case 0:
-                    printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
+                    printf("Adding keyword to photo with id=%"PRIu32"\n", recv_task.photo_id);
                     strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
                     keywordlist_insert(&keywords, recv_task.keyword, recv_task.photo_id, &keywordlock);
 
@@ -622,7 +622,7 @@ void c_interact(void *thread_scl){
         tmp_tasklist = (tasklist_t*) malloc(sizeof(tasklist_t));
         switch(recv_task.type){
             case -1:
-                printf("Deleting photo with id=%"PRIu64"\n", recv_task.photo_id);
+                printf("Deleting photo with id=%"PRIu32"\n", recv_task.photo_id);
                 retval = photolist_delete(&photolist, recv_task.photo_id, &photolock);
                 if(retval == -1){/*already deleted or non existant */
                     free(tmp_tasklist);
@@ -631,7 +631,7 @@ void c_interact(void *thread_scl){
 
                 break;
             case 0:
-                printf("Adding keyword to photo with id=%"PRIu64"\n", recv_task.photo_id);
+                printf("Adding keyword to photo with id=%"PRIu32"\n", recv_task.photo_id);
                 strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
                 keywordlist_insert(&keywords, recv_task.keyword, recv_task.photo_id, &keywordlock);
                 /* add keyword to keyword list */
@@ -658,8 +658,14 @@ void c_interact(void *thread_scl){
                 retval = phototransfer_recv(scl, recv_task.photo_name, recv_task.photo_id);
                 if(retval != 0){
                     photolist_delete(&photolist, recv_task.photo_id, &photolock);
+                    printf("Failed to download photo %s from client\n", recv_task.photo_name);
+                    recv_task.photo_id = -1; //tell client that upload was unsuccessfull
+                    send(scl, &recv_task.photo_id, sizeof(uint32_t), 0);
                     free(tmp_tasklist);
                     continue;
+                } else{
+                    //upload successfull, send photo_id
+                    send(scl, &recv_task.photo_id, sizeof(uint32_t), 0);
                 }
 
                 break;

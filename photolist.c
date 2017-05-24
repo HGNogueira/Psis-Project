@@ -138,13 +138,13 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
 }
 
     /* returns 0 if success, -1 if can't find photo */
-int photolist_delete(photolist_t **photos, uint64_t photo_id, pthread_rwlock_t *rwlock){
+int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *rwlock){
     photolist_t *searchnode;
     int retval;
     char filename[60];
 
     filename[0] = '\0';
-    sprintf(filename, "./%" PRIu64, photo_id);
+    sprintf(filename, "./%" PRIu32, photo_id);
 
     // must be wrlock to avoid some other thread writing first node simultaneously 
     pthread_rwlock_rdlock(rwlock);
@@ -220,7 +220,7 @@ int photolist_print(photolist_t **photos, pthread_rwlock_t *rwlock){
 
     searchnode = *photos;
     while(searchnode != NULL){
-        printf("%s(%"PRIu64")->", searchnode->photo_name, searchnode->photo_id);
+        printf("%s(%"PRIu32")->", searchnode->photo_name, searchnode->photo_id);
         searchnode = searchnode->next;
     }
     pthread_rwlock_unlock(rwlock);

@@ -10,9 +10,8 @@
 #define BUFSIZE 1024
 
     /* transfers photo through socket to process calling photo_recv
-     * on success returns 0
-     * photo_size is calculated and passed through pointer */
-int phototransfer_send(int s, char *photo_name, uint64_t photo_id){
+     * on success returns 0 */
+int phototransfer_send(int s, char *photo_name, uint32_t photo_id){
     FILE * f;
     char buffer[BUFSIZE];
     ssize_t photo_size, remain_data;
@@ -22,7 +21,7 @@ int phototransfer_send(int s, char *photo_name, uint64_t photo_id){
 
     filename[0] = '\0';
     if(photo_id != -1){//-1 means client is sending
-        sprintf(filename, "./%" PRIu64, photo_id);
+        sprintf(filename, "./%" PRIu32, photo_id);
     }
     strcat(filename, photo_name);
 
@@ -51,14 +50,14 @@ int phototransfer_send(int s, char *photo_name, uint64_t photo_id){
 }
 
 
-int phototransfer_recv(int s, char *photo_name, uint64_t photo_id){
+int phototransfer_recv(int s, char *photo_name, uint32_t photo_id){
     FILE *f;
     ssize_t photo_size, remain_data;
     char buffer[BUFSIZE];
     ssize_t len;
     char filename[60];
 
-    sprintf(filename, "./%" PRIu64, photo_id);
+    sprintf(filename, "./%" PRIu32, photo_id);
     strcat(filename, photo_name);
 
     if(recv(s, &photo_size, sizeof(ssize_t), 0) <= 0){
@@ -78,8 +77,10 @@ int phototransfer_recv(int s, char *photo_name, uint64_t photo_id){
         fwrite(buffer, sizeof(char), len, f);
         remain_data = remain_data - len;
     }
-    printf("Remain data = %u\n", (unsigned)remain_data);
     printf("Received %u bytes\n", (unsigned)(photo_size - remain_data));
+    if(remain_data != 0){
+        printf("Didn't receive whole file\n");
+    }
 
     fclose(f);
 
