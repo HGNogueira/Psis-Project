@@ -78,7 +78,7 @@ int main(){
                     perror("send");
                     exit(EXIT_FAILURE);
                 }
-                phototransfer_send(s, task.photo_name);
+                phototransfer_send(s, task.photo_name, -1);
                 continue;
             case 2:
                 printf("Peers will print their lists\n");
