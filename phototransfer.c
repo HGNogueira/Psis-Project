@@ -30,7 +30,7 @@ int phototransfer_send(int s, char *photo_name){
 
     remain_data = photo_size;
     tosend = fread(buffer, sizeof(char), BUFSIZE, f);
-    while(((len = send(s, buffer, BUFSIZE, 0))  > 0) && (remain_data > 0)){
+    while( (remain_data > 0)  && ((len = send(s, buffer, tosend, 0))  > 0)){
         tosend = fread(buffer, sizeof(char), BUFSIZE, f);
         remain_data = remain_data - len;
     }
@@ -61,10 +61,11 @@ int phototransfer_recv(int s, char *photo_name){
     }
 
     remain_data = photo_size;
-    while(((len = recv(s, buffer, BUFSIZE, 0)) > 0) && (remain_data > 0)){
+    while( (remain_data > 0) && ((len = recv(s, buffer, BUFSIZE, 0)) > 0)){
         fwrite(buffer, sizeof(char), len, f);
         remain_data = remain_data - len;
     }
+    printf("Remain data = %u\n", (unsigned)remain_data);
     printf("Received %u bytes\n", (unsigned)(photo_size - remain_data));
 
     fclose(f);
