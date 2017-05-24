@@ -155,7 +155,7 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
     task_t task;
     uint32_t photo_id;
 
-    task.type = 1; //type = 1 means
+    task.type = 1; //type = 1 means add photo
     strcpy(task.photo_name, file_name);
 
     /* apply for adding a new photo */
@@ -172,7 +172,7 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
         update_peer_loss();
         exit(EXIT_FAILURE);
     }
-    printf("Successfully updloaded photo %s\n", file_name);
+    printf("Successfully uploaded photo %s\n", file_name);
 
     return photo_id;
 }
@@ -196,6 +196,25 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
  */
 
 int gallery_add_keyword(int peer_socket, uint32_t id_photo, char *keyword){
+    task_t task;
+    int acknowledge;
+
+    task.type = 0; //type = 0 means add keyword
+    task.photo_id = id_photo;
+    strcpy(task.keyword, keyword);
+
+    /* apply for adding a new keyword */
+    send(peer_socket, (void *) &task, sizeof(task), 0);
+
+    if(recv(peer_socket, &acknowledge, sizeof(int), 0) <= 0){
+        printf("galery_add_keyword: Peer connection failure, exiting\n");
+        update_peer_loss();
+        exit(EXIT_FAILURE);
+    }
+    printf("Successfully added the new keyword\n");
+
+    //pode-se implementar return dependendo se photo existe ou não
+    //não é pedido no enunciado
     return 0;
 }
 
@@ -221,7 +240,35 @@ int gallery_add_keyword(int peer_socket, uint32_t id_photo, char *keyword){
  */
 
 int gallery_search_photo(int peer_socket, char * keyword, uint32_t ** id_photos){
-    return 0;
+    task_t task;
+    int size, len, pointer, remain_data;
+
+    task.type = 4;
+    strcpy(task.keyword, keyword);
+
+
+    /* apply for id search */
+    send(peer_socket, (void *) &task, sizeof(task), 0);
+
+    if(recv(peer_socket, &size, sizeof(int), 0) <= 0){
+        printf("galery_search_photo: Peer connection failure, exiting\n");
+        update_peer_loss();
+        exit(EXIT_FAILURE);
+    }
+
+    *id_photos = (int *) malloc(sizeof(int)*size);
+    remain_data = size;
+    pointer = 0;
+    while( (remain_data > 0) && ((len = recv(peer_socket, (*id_photos + pointer), sizeof(int)*remain_data, 0)) > 0)){
+        remain_data = remain_data - len;
+        pointer = size-remain_data;
+    }
+
+    if(remain_data != 0){
+        printf("galery_search_photo: remain_data = %d  , data transfer imperfect\n", remain_data);
+    }
+
+    return size;
 }
 
 /*
@@ -242,7 +289,31 @@ int gallery_search_photo(int peer_socket, char * keyword, uint32_t ** id_photos)
  */
 
 int gallery_delete_photo(int peer_socket, uint32_t id_photo){
-    return 0;
+    task_t task;
+    int acknowledge;
+
+    task.type = -1; //type = -1 means delete photo
+    task.photo_id = id_photo;
+
+    /* apply for deleting a photo */
+    send(peer_socket, (void *) &task, sizeof(task), 0);
+
+    if(recv(peer_socket, &acknowledge, sizeof(int), 0) <= 0){
+        printf("galery_add_keyword: Peer connection failure, exiting\n");
+        update_peer_loss();
+        exit(EXIT_FAILURE);
+    }
+    if(acknowledge == 1){
+        printf("Successfully added the new keyword\n");
+        return 1;
+    }
+    if(acknowledge == 0){
+        printf("Photo not found\n");
+        return 0;
+    }else{
+        printf("Error while deleting photo\n");
+    }
+    return -1;
 }
 
 /*
