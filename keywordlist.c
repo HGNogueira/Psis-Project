@@ -61,27 +61,3 @@ void keywordlist_remID(keyword_node *hp, unsigned id, pthread_rwlock_t *rwlock){
 	for(keyword_node *p = hp; p != NULL ; p = p->next)
 		IDlist_del_el(&p->ids, id, rwlock);
 }
-
-int main(){
-	keyword_node *keys = KEYWORDLIST_INIT();
-	keyword_node *nkey;
-	unsigned id = 0;
-	pthread_rwlock_t rwlock;
-	keywordlist_insert(&keys, "animais", id + 3, &rwlock);
-	keywordlist_insert(&keys, "mamiferos", id, &rwlock);
-	keywordlist_insert(&keys, "objetos", id + 1, &rwlock);
-	keywordlist_insert(&keys, "paisagens", id + 2, &rwlock);
-	keywordlist_insert(&keys, "armários", id + 3, &rwlock);
-	keywordlist_insert(&keys, "armários", id + 3, &rwlock);
-	keywordlist_insert(&keys, "armários", id + 4, &rwlock);
-	keywordlist_printAllData(keys, &rwlock);
-	keywordlist_printIDS_fromKey(keys, "armários", &rwlock);
-	putchar('\n');
-	keywordlist_remID(keys, 3, &rwlock);
-	keywordlist_remID(keys, 3, &rwlock);
-	keywordlist_remID(keys, 2, &rwlock);
-	keywordlist_remID(keys, 1, &rwlock);
-	keywordlist_printAllData(keys, &rwlock);
-	keywordlist_delete(&keys ,&rwlock);
-	return 0;
-}
