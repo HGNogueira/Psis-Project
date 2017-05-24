@@ -52,11 +52,12 @@ struct task{
      *  1: add new photo with photo_name and nbytes;
      *  2: print photo_list
      *  3: print keywordlist
+     *  4: return photo_id array related to a keyword (gallery_search_photo)
      *
      */
     int type;
     int ID;              //will correspond to the ID of the responsible peer
-    uint64_t photo_id;   //corresponds to the filename
+    uint32_t photo_id;   //corresponds to the filename
     char photo_name[50]; //corresponds to the filename to save photo
     char keyword[50];    //added keyword or lookup keyword
     unsigned photo_size;
