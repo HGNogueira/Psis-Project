@@ -27,6 +27,8 @@ int phototransfer_send(int s, char *photo_name, uint32_t photo_id){
 
     if((f = fopen(filename, "r") ) == NULL){
         perror("phototransfer_send (fopen):\n");
+        photo_size = 0;
+        send(s, &photo_size, sizeof(ssize_t), 0);
         return -1;
     }
 
@@ -64,12 +66,17 @@ int phototransfer_recv(int s, char *photo_name, uint32_t photo_id){
         printf("phototransfer_recv: socket disconnected while receiving photo_size\n");
         return -1;
     }
+    if(photo_size == 0){
+        printf("Counterpart couldn't send photo\n");
+        return -1;
+    }
 
     printf("Will receive a photo with size %u\n", (unsigned)photo_size);
 
     if((f = fopen(filename, "w")) == NULL){
         perror("phototransfer_recv (fopen):");
-        return -1;
+        printf("Server shutdown required\n");
+        exit(EXIT_FAILURE);
     }
 
     remain_data = photo_size;
