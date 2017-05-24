@@ -109,7 +109,7 @@ void *get_updated(void *thread_s){
                 pthread_mutex_unlock(&update_mutex);
                 return NULL;
             case -1: //this case should never be acted with this architecure
-                if(photolist_delete(&photolist, recv_task.photo_id, &photolock) == 0)
+                if(photolist_delete(&photolist, recv_task.photo_id, &photolock) == 1)
                     printf("Deleted photo %s\n", recv_task.photo_name);
                 else{
                     free(tmp_tasklist);
@@ -253,7 +253,6 @@ void update_peer(void *thread_s){
             deleter_dim++;
             deleter_list = (tasklist_t**) realloc(deleter_list, sizeof(tasklist_t*)*deleter_dim);
             deleter_list[deleter_dim - 1] = update_list; //save pointer to tasklist
-            update_list = update_list->prev;
         }
         if(update_list->task.type == 0){
             /*check if photo has been deleted, no need to pass task if so */
@@ -591,6 +590,7 @@ void c_interact(void *thread_scl){
 	int err;
     int retval;
     int photo_id;
+    int acknowledge;
     task_t recv_task;
     message_gw gw_msg;
     socklen_t addr_len;
@@ -628,12 +628,16 @@ void c_interact(void *thread_scl){
                     free(tmp_tasklist);
                     continue;
                 }
+                send(scl, &retval, sizeof(retval), 0);
 
                 break;
             case 0:
                 printf("Adding keyword to photo with id=%"PRIu32"\n", recv_task.photo_id);
                 strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
                 keywordlist_insert(&keywords, recv_task.keyword, recv_task.photo_id, &keywordlock);
+                acknowledge = 1; //acknowledge back to the client
+                send(scl, &acknowledge, sizeof(int), 0);
+                
                 /* add keyword to keyword list */
 
                 break;
@@ -676,6 +680,11 @@ void c_interact(void *thread_scl){
             case 3:
                 keywordlist_printAllData(keywords, &keywordlock);
                 break;
+            case 4:
+                /* POR IMPLEMENTAR A PROCURA DAS KEYWORDS */
+
+                free(tmp_tasklist);
+                continue;
             default:
                 printf("c_interact: Unknown routine for task with type %d\n", recv_task.type);
                 free(tmp_tasklist);
