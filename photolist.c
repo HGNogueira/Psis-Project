@@ -15,7 +15,7 @@ photolist_t *photolist_init(){
 }
 
     /* returns 0 if success, 1 if photo already there */
-int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, unsigned photo_size, pthread_rwlock_t *rwlock){
+int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, pthread_rwlock_t *rwlock){
     photolist_t *auxphoto, *searchnode;
     int retval;
 
@@ -23,7 +23,6 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     auxphoto = (photolist_t *) malloc(sizeof(photolist_t));
     auxphoto->photo_id = photo_id;
     strcpy(auxphoto->photo_name, photo_name);
-    auxphoto->photo_size = photo_size;
     auxphoto->next = NULL;
     auxphoto->prev = NULL;
 
@@ -60,7 +59,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
                 pthread_rwlock_unlock(rwlock);
                 free(auxphoto);
                 //try again
-                retval = photolist_insert(photos, photo_id, photo_name, photo_size, rwlock);
+                retval = photolist_insert(photos, photo_id, photo_name, rwlock);
                 return retval;
 
             }
@@ -97,7 +96,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
         pthread_rwlock_unlock(rwlock);
         free(auxphoto);
         //try again
-        retval = photolist_insert(photos, photo_id, photo_name, photo_size, rwlock);
+        retval = photolist_insert(photos, photo_id, photo_name, rwlock);
         return retval;
 
     }
@@ -139,9 +138,13 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
 }
 
     /* returns 0 if success, -1 if can't find photo */
-int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_size, pthread_rwlock_t *rwlock){
+int photolist_delete(photolist_t **photos, uint64_t photo_id, pthread_rwlock_t *rwlock){
     photolist_t *searchnode;
     int retval;
+    char filename[60];
+
+    filename[0] = '\0';
+    sprintf(filename, "./%" PRIu64, photo_id);
 
     // must be wrlock to avoid some other thread writing first node simultaneously 
     pthread_rwlock_rdlock(rwlock);
@@ -162,7 +165,9 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_siz
             if(searchnode->next != NULL){
                 (searchnode->next)->prev = searchnode->prev;
             }
-            if(unlink(searchnode->photo_name) == -1){
+
+            strcat(filename, searchnode->photo_name);
+            if(unlink(filename) == -1){
                 perror("photolist_delete (unlink)");
             }
 
@@ -188,7 +193,8 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_siz
             if(searchnode->next != NULL){
                 (searchnode->next)->prev = searchnode->prev;
             }
-            if(unlink(searchnode->photo_name) == -1){
+            strcat(filename, searchnode->photo_name);
+            if(unlink(filename) == -1){
                 perror("photolist_delete (unlink)");
             }
             free(searchnode);
