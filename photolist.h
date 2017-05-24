@@ -1,3 +1,6 @@
+#ifndef PHOTOLIST_H
+#define PHOTOLIST_H
+
 #include <pthread.h>
 #include <sys/types.h>
 #include <stdint.h>
@@ -22,3 +25,4 @@ photolist_t *photolist_init();
 int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, unsigned photo_size, pthread_rwlock_t *rwlock);
 int photolist_delete(photolist_t **photos, uint32_t photo_id, unsigned photo_size, pthread_rwlock_t *rwlock);
 int photolist_print(photolist_t **photos, pthread_rwlock_t *rwlock);
+#endif //PHOTOLIST_H

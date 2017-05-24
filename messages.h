@@ -1,3 +1,5 @@
+#ifndef MESSAGES_H
+#define MESSAGES_H
 #define MESSAGE_LEN 100
 #define SRV1_PORT 3001
 #define IP_ADDR "10.0.2.15"
@@ -49,6 +51,7 @@ struct task{
      *  0: add keyword to photo_id
      *  1: add new photo with photo_name and nbytes;
      *  2: print photo_list
+     *  3: print keywordlist
      *
      */
     int type;
@@ -59,3 +62,4 @@ struct task{
     unsigned photo_size;
     int turns;           //additional indicator to control perpetual propagation
 };
+#endif
