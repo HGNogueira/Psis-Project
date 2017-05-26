@@ -307,7 +307,6 @@ void update_peer(void *thread_s){
             if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
                 perror("send error");
             }
-            pthread_mutex_unlock(&update_mutex);
             if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
                 if(deleter_list != NULL)
                     free(deleter_list);
@@ -340,7 +339,6 @@ void update_peer(void *thread_s){
             return;
         }
         update_list = update_list->prev;
-        pthread_mutex_unlock(&update_mutex);
     }
 
 }
@@ -630,7 +628,7 @@ void c_interact(void *thread_scl){
                 }
                 send(scl, &retval, sizeof(retval), 0);
 
-                break;
+                break; //add task to tasklist
             case 0:
                 printf("Adding keyword to photo with id=%"PRIu32"\n", recv_task.photo_id);
                 strcpy(tmp_tasklist->task.keyword, recv_task.keyword);
@@ -640,7 +638,7 @@ void c_interact(void *thread_scl){
                 
                 /* add keyword to keyword list */
 
-                break;
+                break; //add task to tasklist
             case 1:
                 printf("Adding new photo with name %s\n", recv_task.photo_name);
                 strcpy(tmp_tasklist->task.photo_name, recv_task.photo_name);
@@ -672,7 +670,7 @@ void c_interact(void *thread_scl){
                     send(scl, &recv_task.photo_id, sizeof(uint32_t), 0);
                 }
 
-                break;
+                break; //add task to tasklist
             case 2:
                 if(photolist_print(&photolist, &photolock) == -1)
                     printf("Empty list\n");
@@ -684,6 +682,13 @@ void c_interact(void *thread_scl){
                 /* POR IMPLEMENTAR A PROCURA DAS KEYWORDS */
 
                 free(tmp_tasklist);
+                continue;
+            case 5:
+                retval = photolist_getname(&photolist, recv_task.photo_id, recv_task.photo_name, &photolock);
+                send(scl, recv_task.photo_name, sizeof(recv_task.photo_name), 0);
+                continue;
+            case 6:
+                retval = photolist_upload(&photolist, scl, recv_task.photo_id, &photolock);
                 continue;
             default:
                 printf("c_interact: Unknown routine for task with type %d\n", recv_task.type);
