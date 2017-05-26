@@ -93,10 +93,8 @@ void *get_updated(void *thread_s){
 		}
 		else if(err == 0){ //client disconnected
 			printf("Peer disconnected from this server while updating me...\n");
-            pthread_mutex_unlock(&update_mutex);
             pthread_exit(NULL);
 		}
-        pthread_mutex_lock(&update_mutex); /* Can't update while getting updated/reconnected */
 		printf("Received new task from Updator\n");
         tmp_tasklist = (tasklist_t *) malloc(sizeof(tasklist_t));
         /* process new task */
@@ -106,16 +104,14 @@ void *get_updated(void *thread_s){
                 updated = 1;
                 close(s);
                 sem_post(&update_sem);
-                pthread_mutex_unlock(&update_mutex);
                 return NULL;
-            case -1: //this case should never be acted with this architecure
+            case -1:
                 if(photolist_delete(&photolist, recv_task.photo_id, &photolock) == 1)
                     printf("Deleted photo %s\n", recv_task.photo_name);
                 else{
                     free(tmp_tasklist);
                     acknowledge = 1;
                     send(s, &acknowledge, sizeof(acknowledge), 0);
-                    pthread_mutex_unlock(&update_mutex);
                     continue;
                 }
                 break;
@@ -134,16 +130,23 @@ void *get_updated(void *thread_s){
                 /* add photo to photolist */
                 retval = photolist_insert(&photolist, recv_task.photo_id, recv_task.photo_name, &photolock);
                 if(retval == 1){
-                    /* Reconnected peer is confirmed to be back in the chain
-                     * no information lost */
+                    acknowledge = 1;
+                    send(s, &acknowledge, sizeof(acknowledge), 0);
+                    send(s, &acknowledge, sizeof(acknowledge), 0); //send acknowledge twice 
+                    free(tmp_tasklist);
+                    continue;
+                }
+                /*
+                if(retval == 1){
+                    // Reconnected peer is confirmed to be back in the chain
+                    // no information lost 
                     free(tmp_tasklist);
                     acknowledge = 0;
                     send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
                     close(s);
                     printf("I am reconnected\n");
-                    pthread_mutex_unlock(&update_mutex);
                     pthread_exit(NULL);
-                }
+                }*/
                 if(retval == 0){
                     acknowledge = 2;
                     send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
@@ -156,7 +159,6 @@ void *get_updated(void *thread_s){
                         send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
 
                         free(tmp_tasklist);
-                        pthread_mutex_unlock(&update_mutex);
                         continue;
                     }
                 }
@@ -168,7 +170,6 @@ void *get_updated(void *thread_s){
                 printf("Strange task type (%d) while getting up to date... danger of unobtained synchronization...", recv_task.type);
                 send(s, &acknowledge, sizeof(acknowledge), 1); //for now acknowledge is always 1
                 free(tmp_tasklist);
-                pthread_mutex_unlock(&update_mutex);
                 continue;
         }
         /* add task to tasklist as previous task */
@@ -187,7 +188,6 @@ void *get_updated(void *thread_s){
         pthread_mutex_unlock(&task_mutex);
 
         send(s, &acknowledge, sizeof(acknowledge), 0); //for now acknowledge is always 1
-        pthread_mutex_unlock(&update_mutex);
     }
 }
 
@@ -202,7 +202,6 @@ void update_peer(void *thread_s){
     int s = (int) *((int*) thread_s);
     free(thread_s);
 
-    pthread_mutex_lock(&update_mutex); /* Can't update while getting updated/reconnected */
     deleter_list = NULL;
     pthread_mutex_lock(&task_mutex);
     update_list = tasklist;
@@ -232,7 +231,6 @@ void update_peer(void *thread_s){
             send(s, &termination_task, sizeof(task_t), 0);
             printf("Peer is up to date\n");
             close(s);
-            pthread_mutex_unlock(&update_mutex);
             return;
         }
 
@@ -311,7 +309,6 @@ void update_peer(void *thread_s){
                 if(deleter_list != NULL)
                     free(deleter_list);
                 close(s);
-                pthread_mutex_unlock(&update_mutex);
                 return;
             }
             if(acknowledge == 2){//start transfering photo
@@ -324,7 +321,6 @@ void update_peer(void *thread_s){
             if(deleter_list != NULL)
                 free(deleter_list);
             close(s);
-            pthread_mutex_unlock(&update_mutex);
             return;
         }
 
@@ -335,12 +331,10 @@ void update_peer(void *thread_s){
                 free(deleter_list);
             printf("Peer is back in the information chain\n");
             close(s);
-            pthread_mutex_unlock(&update_mutex);
             return;
         }
         update_list = update_list->prev;
     }
-
 }
 
     /* this thread function implements normal son-peer interaction */
@@ -426,14 +420,14 @@ void *pfather_interact(void *dummy){
     peer_addr.sin_port = htons(gw_msg.port);
 	inet_aton(gw_msg.address, &peer_addr.sin_addr);
 
-    if(gw_msg.ID == 0){
+    if(gw_msg.type == 0){
         ID = 0; //I was crowned the head of the list
         printf("I am the head of the list\n");
         updated = 1;
         sem_post(&update_sem);
     }
 
-    if(1){// || reconnected ==1){
+    if(gw_msg.ID != ID){//only jump to update routine if peer not his own father
         printf("Contacting father in order to get updated\n");
         s_up = (int*) malloc(sizeof(int));
         if(  (*s_up = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
