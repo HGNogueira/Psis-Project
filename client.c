@@ -33,6 +33,7 @@ int main(){
     int task_type;
     char photo_name[50];
     char keyword[50];
+    char *dyn_name;
     int photo_id;
 		
 	/****** CONTACT GATEWAY ******/
@@ -48,7 +49,7 @@ int main(){
     }
 
 	while(1){  /* interaction */
-        printf("Type task type: -1, 0, 1, 2, 3, 4:");
+        printf("Type task type: -1, 0, 1, 2, 3, 4, 5, 6:");
         scanf("%d", &task_type);
         task.type = task_type;
         switch(task_type){
@@ -89,6 +90,15 @@ int main(){
                 }
                 printf("\n");
                 free(id_photos);
+
+                continue;
+            case 5:
+                printf("You wish to search for a photo name, type id:");
+                scanf("%d", &photo_id);
+                if(gallery_get_photo_name(s, photo_id, &dyn_name) == 1){
+                    printf("Photo_name = %s\n", dyn_name);
+                    free(dyn_name);
+                }
 
                 continue;
             default:
