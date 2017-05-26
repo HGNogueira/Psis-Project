@@ -44,4 +44,10 @@ void keywordlist_printAllData(keyword_node *h, pthread_rwlock_t *rwlock);
 /******************************************************************************/
 // PRINT respective IDS from a given keyword
 void keywordlist_printIDS_fromKey(keyword_node *h, char *, pthread_rwlock_t *rwlock);
+/******************************************************************************/
+// Search for a given key
+// Return NULL if no match
+// Return node of the keyword found
+keyword_node *search_keyword(keyword_node *, char *, pthread_rwlock_t *);
+
 #endif //KEYWORDLIST_INIT_H
