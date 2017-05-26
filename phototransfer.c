@@ -59,7 +59,10 @@ int phototransfer_recv(int s, char *photo_name, uint32_t photo_id){
     ssize_t len;
     char filename[60];
 
-    sprintf(filename, "./%" PRIu32, photo_id);
+    filename[0] = '\0';
+    if(photo_id != -1){
+        sprintf(filename, "./%" PRIu32, photo_id);
+    }
     strcat(filename, photo_name);
 
     if(recv(s, &photo_size, sizeof(ssize_t), 0) <= 0){
@@ -67,8 +70,8 @@ int phototransfer_recv(int s, char *photo_name, uint32_t photo_id){
         return -1;
     }
     if(photo_size == 0){
-        printf("Counterpart couldn't send photo\n");
-        return -1;
+        printf("Counterpart couldn't find photo\n");
+        return 1;
     }
 
     printf("Will receive a photo with size %u\n", (unsigned)photo_size);
