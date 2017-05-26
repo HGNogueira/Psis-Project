@@ -15,9 +15,10 @@ int IDlist_insert(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
 
 void IDlist_print(id_node *h, pthread_rwlock_t *rwlock){
 	id_node *p;
-	for(p = h; p != NULL; p = p->next){
+	pthread_rwlock_rdlock(rwlock);
+	for(p = h; p != NULL; p = p->next)
 		printf("(%u) ", p->id);
-	}
+	pthread_rwlock_unlock(rwlock);
 	putchar('\n');
 }
 
