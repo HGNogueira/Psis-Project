@@ -99,6 +99,17 @@ int main(){
                     printf("Photo_name = %s\n", dyn_name);
                     free(dyn_name);
                 }
+                continue;
+            case 6:
+                printf("You wish to upload a photo, whats the photo_id?");
+                scanf("%d", &photo_id);
+                printf("What is the filename?");
+                scanf("%s", photo_name);
+                if(gallery_get_photo(s, photo_id, photo_name)){
+                        printf("Upload successfull\n");
+                } else{
+                        printf("Something's wrong\n");
+                }
 
                 continue;
             default:
