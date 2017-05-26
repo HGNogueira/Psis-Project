@@ -198,7 +198,6 @@ void *p_interact(void *rwlock){
                 check_and_update_peer(&gw_msg, rwlock);
         } else if (gw_msg.type == 4){   //peer querying photo_id
 			sendto(sp, &photo_id, sizeof(photo_id), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr)); //send back photo_id information
-            //######## NEED photo_id GUARD !!!#####
             photo_id++;
         }
         else if(gw_msg.type ==5 ){/* peer searching for father */
@@ -211,10 +210,12 @@ void *p_interact(void *rwlock){
              * then we can guarantee he is updated
              * there must always be a peer 0 */
             if(searchlist_crown_head(&servers, gw_msg.ID, rwlock)){
-                gw_msg.ID = 0;//comunicate that peer is new 0 peer
-            }
+                gw_msg.type = 0;//comunicate that peer is new 0 peer
+            } else
+                gw_msg.type = 1;
             strcpy(gw_msg.address, tmp_node->address);
             gw_msg.port = tmp_node->port;
+            gw_msg.ID = tmp_node->ID; //send gw_msg.ID with information about father ID
             sendto(sp, &gw_msg, sizeof(gw_msg), 0, (const struct sockaddr*) &rmt_addr, sizeof(rmt_addr));
         }
         else{
