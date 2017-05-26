@@ -335,7 +335,26 @@ int gallery_delete_photo(int peer_socket, uint32_t id_photo){
  */
 
  int gallery_get_photo_name(int peer_socket, uint32_t id_photo, char **photo_name){
-     return 0;
+    task_t task;
+    int acknowledge;
+
+    task.type = 5; //type = 5 means return name of the photo with photo_id
+    task.photo_id = id_photo;
+
+    /* apply for photo_name */
+    send(peer_socket, (void *) &task, sizeof(task), 0);
+
+    *photo_name = (char *) malloc(sizeof(photo_name)*50);
+
+    if(recv(peer_socket, *photo_name , sizeof(char)*50, 0) <= 0){
+        printf("galery_get_photo_name: Peer connection failure, exiting\n");
+        update_peer_loss();
+        exit(EXIT_FAILURE);
+    }
+    if( (*photo_name)[0] == '\0')
+        return 0;
+
+     return 1;
  }
 
  /*
@@ -357,5 +376,20 @@ int gallery_delete_photo(int peer_socket, uint32_t id_photo){
   */
 
  int gallery_get_photo(int peer_socket, uint32_t id_photo, char *file_name){
-     return 0;
+    task_t task;
+    int retval;
+
+    task.type = 6; //type = 6 means return name of the photo with photo_id
+    task.photo_id = id_photo;
+
+    /* apply for photo upload */
+    send(peer_socket, (void *) &task, sizeof(task), 0);
+
+    retval = phototransfer_recv(peer_socket, file_name, -1);
+    if(retval == 1)
+        return 0;
+    else if(retval == -1)
+        return -1;
+
+    return 1;
  }
