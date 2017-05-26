@@ -1,5 +1,6 @@
 #include <pthread.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdlib.h>
@@ -9,6 +10,7 @@
 #include <unistd.h>
 
 #include "photolist.h"
+#include "phototransfer.h"
 
 photolist_t *photolist_init(){
     return NULL;
@@ -58,6 +60,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
             if(searchnode == NULL){//someone deleted this photo meanwhile
                 pthread_rwlock_unlock(rwlock);
                 free(auxphoto);
+                auxphoto = NULL;
                 //try again
                 retval = photolist_insert(photos, photo_id, photo_name, rwlock);
                 return retval;
@@ -95,6 +98,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     if(searchnode == NULL){//someone deleted this photo meanwhile
         pthread_rwlock_unlock(rwlock);
         free(auxphoto);
+        auxphoto = NULL;
         //try again
         retval = photolist_insert(photos, photo_id, photo_name, rwlock);
         return retval;
@@ -137,6 +141,72 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
     }
 }
 
+/* returns pointer to photo, if it doesn't exist, returns NULL */
+photolist_t *photolist_search(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *rwlock){
+    photolist_t *searchnode;
+
+    /* lock outside searchloop, critical region is relatively small */
+    pthread_rwlock_rdlock(rwlock);
+    searchnode = *photos;
+    if(searchnode == NULL){
+        pthread_rwlock_unlock(rwlock);
+        return NULL;
+    }
+    while(searchnode != NULL){
+        if(searchnode->photo_id == photo_id){
+            pthread_rwlock_unlock(rwlock);
+            return searchnode;
+        }
+        searchnode = searchnode->next;
+    }
+    pthread_rwlock_unlock(rwlock);
+    return NULL;
+}
+
+
+int photolist_getname(photolist_t **photos, uint32_t photo_id, char *photo_name, pthread_rwlock_t *rwlock){
+    photolist_t *searchnode;
+
+    searchnode = photolist_search(photos, photo_id, rwlock);
+    pthread_rwlock_rdlock(rwlock);
+    if(searchnode == NULL){
+        (photo_name)[0] = '\0';
+        pthread_rwlock_unlock(rwlock);
+        return 0;
+    }
+    strcpy(photo_name, searchnode->photo_name);
+    pthread_rwlock_unlock(rwlock);
+
+    return 1;
+}
+
+/* uploads photo through socket connection, returns 1 on success, else returns 0 */
+int photolist_upload(photolist_t **photos, int socket, uint32_t photo_id, pthread_rwlock_t *rwlock){
+    photolist_t *toupload;
+    char photo_name[50];
+    int retval;
+    ssize_t dummy = 0;
+
+    toupload = photolist_search(photos, photo_id, rwlock);
+
+    pthread_rwlock_rdlock(rwlock); 
+    if(toupload == NULL){
+        pthread_rwlock_unlock(rwlock);
+        printf("Photo with id =%"PRIu32" no longer exists in database\n", photo_id);
+        send(socket, &dummy, sizeof(dummy), 0); //send size = 0 to stop transfer
+        return 0;
+    }
+    strcpy(photo_name, toupload->photo_name);
+    pthread_rwlock_unlock(rwlock);
+
+    retval =  phototransfer_send(socket, photo_name, photo_id);
+
+    if(retval != 0){
+        return 1;
+    }
+    return 0;
+}
+
     /* returns 1 if success, 0 if can't find photo, -1 if error */
 int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *rwlock){
     photolist_t *searchnode;
@@ -171,12 +241,14 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
                 perror("photolist_delete (unlink)");
                 *photos = searchnode->next;
                 free(searchnode);
+                searchnode = NULL;
                 pthread_rwlock_unlock(rwlock);
                 return -1;
             }
 
             *photos = searchnode->next;
             free(searchnode);
+            searchnode = NULL;
             pthread_rwlock_unlock(rwlock);
             return 1;
     }
@@ -200,9 +272,11 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
             if(unlink(filename) == -1){
                 perror("photolist_delete (unlink)");
                 free(searchnode);
+                searchnode = NULL;
                 return -1;
             }
             free(searchnode);
+            searchnode = NULL;
 
             pthread_rwlock_unlock(rwlock);
             return 1;
