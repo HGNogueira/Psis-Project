@@ -53,6 +53,8 @@ struct task{
      *  2: print photo_list
      *  3: print keywordlist
      *  4: return photo_id array related to a keyword (gallery_search_photo)
+     *  5: return name of photo with photo_id
+     *  6: upload photo back to client
      *
      */
     int type;
