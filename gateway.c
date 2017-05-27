@@ -55,7 +55,7 @@ int run = 1;
 int sc, sp; // client side and server side socket descriptors
 serverlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
-uint32_t photo_id = 0; /*photos id counter */
+uint32_t photo_id = 1; /*photos id counter */
 int n_peers = 0;   /* number of total peers */
 /********************************/
 
