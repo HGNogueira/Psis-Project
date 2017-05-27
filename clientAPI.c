@@ -163,7 +163,7 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
 
     /* call phototransfer_send function to send photo
      * -1 as arguments indicates client is calling (vs peer) */
-    if(phototransfer_send(peer_socket, task.photo_name, -1) != 0){
+    if(phototransfer_send(peer_socket, task.photo_name, 0) != 0){
         printf("Failed sending the photo %s\n", task.photo_name);
     }
 
@@ -172,7 +172,8 @@ uint32_t gallery_add_photo(int peer_socket, char *file_name){
         update_peer_loss();
         exit(EXIT_FAILURE);
     }
-    printf("Successfully uploaded photo %s\n", file_name);
+    if(photo_id != 0)
+        printf("Successfully uploaded photo %s\n", file_name);
 
     return photo_id;
 }
