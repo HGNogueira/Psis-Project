@@ -123,3 +123,40 @@ void keywordlist_remID(keyword_node *hp, unsigned id, pthread_rwlock_t *rwlock){
 		pthread_rwlock_unlock(rwlock);
 	}
 }
+
+keyword_node *search_keyword(keyword_node *keys, char *keyword, pthread_rwlock_t *rwlock){
+	keyword_node *p;
+	pthread_rwlock_rdlock(rwlock);
+	for(p = keys; p != NULL && strcoll(keyword, p->keyword) > 0; p = p->next)
+		;
+	if(p == NULL){
+		pthread_rwlock_unlock(rwlock);
+		return NULL;
+	}
+	else if(!strcoll(keyword, p->keyword)){
+		pthread_rwlock_unlock(rwlock);
+		return p;
+	}
+	else{
+		pthread_rwlock_unlock(rwlock);
+		return NULL;
+	}
+}
+
+
+
+int main(){
+	keyword_node *keys = KEYWORDLIST_INIT();
+	pthread_rwlock_t rwlock;
+	pthread_rwlock_init(&rwlock, NULL);
+	keywordlist_insert(&keys, "Armários", 0, &rwlock);
+	keywordlist_insert(&keys, "Armários", 1, &rwlock);
+	keywordlist_insert(&keys, "Paisagens", 50, &rwlock);
+	keywordlist_insert(&keys, "Armários", 2, &rwlock);
+	keywordlist_printAllData(keys, &rwlock);
+	keywordlist_remID(keys, 50, &rwlock);
+	keywordlist_remID(keys, 1, &rwlock);
+	keywordlist_printAllData(keys, &rwlock);
+	printf("%s\n", search_keyword(keys, "Paisagens", &rwlock) ? search_keyword(keys, "Paisagens", &rwlock)->keyword : "Xupa-mos");
+	return 0;
+}
