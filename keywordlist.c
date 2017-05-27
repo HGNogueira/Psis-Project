@@ -1,7 +1,7 @@
 #include "keywordlist.h"
 #include <unistd.h>
 
-keyword_node *keywordlist_insert(keyword_node **keys, char *keyword, unsigned id, pthread_rwlock_t *rwlock){
+keyword_node *keywordlist_insert(keyword_node **keys, char *keyword, uint32_t id, pthread_rwlock_t *rwlock, photolist_t **photos, pthread_rwlock_t *photolock){
 	keyword_node *a, *p;
 	pthread_rwlock_rdlock(rwlock);
 	for(p = *keys; p != NULL && strcoll(keyword, p->keyword) > 0; a = p, p = p->next)
@@ -18,25 +18,37 @@ keyword_node *keywordlist_insert(keyword_node **keys, char *keyword, unsigned id
 		id_node *n = malloc(sizeof *n);
 		n->id = id;
 		pthread_rwlock_wrlock(rwlock);
-		n->next = pID; // Assign new element to next node
-		aID->next = n; // Connect new element to previous node
-		pthread_rwlock_unlock(rwlock);
-		return p;
+        if(photolist_search(photos, id, photolock) != NULL){//check if id exists
+            n->next = pID; // Assign new element to next node
+            aID->next = n; // Connect new element to previous node
+            pthread_rwlock_unlock(rwlock);
+            return p;
+        }
+        free(n);
+        pthread_rwlock_unlock(rwlock);
+		return NULL;
 	}
 	pthread_rwlock_unlock(rwlock);
-	keyword_node *n = malloc(sizeof *n);
-    n->keyword = strcpy(malloc(strlen(keyword) + 1), keyword);
+
 	pthread_rwlock_wrlock(rwlock);
-	n->next = p;
-	if(p == *keys)
-		*keys = n;
-	else
-		a->next = n;
-	n->ids = malloc(sizeof n->ids);
-	n->ids->id = id;
-	n->ids->next = NULL;
-	pthread_rwlock_unlock(rwlock);
-	return n;
+    keyword_node *n = malloc(sizeof *n);
+    n->keyword = strcpy(malloc(strlen(keyword) + 1), keyword);
+    n->next = p;
+    if(photolist_search(photos, id, photolock) != NULL){//check if id exists
+        if(p == *keys)
+            *keys = n;
+        else
+            a->next = n;
+        n->ids = malloc(sizeof n->ids);
+        n->ids->id = id;
+        n->ids->next = NULL;
+        pthread_rwlock_unlock(rwlock);
+        return n;
+    }
+    pthread_rwlock_unlock(rwlock);
+    free(n->keyword);
+    free(n);
+    return NULL;
 }
 
 void keywordlist_printAllData(keyword_node *h, pthread_rwlock_t *rwlock){
@@ -84,7 +96,7 @@ void keywordlist_delete(keyword_node **hp, pthread_rwlock_t *rwlock){
 	*hp = NULL;
 }
 
-void keywordlist_remID(keyword_node *hp, unsigned id, pthread_rwlock_t *rwlock){
+void keywordlist_remID(keyword_node *hp, uint32_t id, pthread_rwlock_t *rwlock){
 	keyword_node *p = hp;
 	while(1){
 		pthread_rwlock_rdlock(rwlock);

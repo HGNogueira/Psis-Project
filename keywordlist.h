@@ -11,6 +11,7 @@
 #include <string.h>
 #include <locale.h>
 #include "idlist.h"
+#include "photolist.h"
 
 /* prototype for keyword list node, contains all information regarding each key*/
 
@@ -28,7 +29,7 @@ typedef struct keyword{
 // RETURN NULL IF KEYWORD ALREADY IN THE LIST
 // RETURNS keyword_node * TO THE  KEYWORD INSERTED IN THE LIST
 // CAN RETURN VOID!
-keyword_node *keywordlist_insert(keyword_node **, char *, uint32_t, pthread_rwlock_t *);
+keyword_node *keywordlist_insert(keyword_node **, char *, uint32_t, pthread_rwlock_t *, photolist_t **photos, pthread_rwlock_t *photolock);
 /******************************************************************************/
 // DELETE ALL keywordlist
 void keywordlist_delete(keyword_node **, pthread_rwlock_t *);
