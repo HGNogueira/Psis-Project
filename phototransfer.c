@@ -20,7 +20,7 @@ int phototransfer_send(int s, char *photo_name, uint32_t photo_id){
     char filename[60];
 
     filename[0] = '\0';
-    if(photo_id != -1){//-1 means client is sending
+    if(photo_id != 0){//-1 means client is sending
         sprintf(filename, "./%" PRIu32, photo_id);
     }
     strcat(filename, photo_name);
@@ -60,7 +60,7 @@ int phototransfer_recv(int s, char *photo_name, uint32_t photo_id){
     char filename[60];
 
     filename[0] = '\0';
-    if(photo_id != -1){
+    if(photo_id != 0){
         sprintf(filename, "./%" PRIu32, photo_id);
     }
     strcat(filename, photo_name);
