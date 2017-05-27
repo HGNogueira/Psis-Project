@@ -48,6 +48,6 @@ void keywordlist_printIDS_fromKey(keyword_node *h, char *, pthread_rwlock_t *rwl
 // Search for a given key
 // Return NULL if no match
 // Return node of the keyword found
-keyword_node *search_keyword(keyword_node *, char *, uint32_t **, pthread_rwlock_t *);
+int search_keyword(keyword_node *, char *, uint32_t **, pthread_rwlock_t *);
 
 #endif //KEYWORDLIST_INIT_H
