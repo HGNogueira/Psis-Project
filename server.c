@@ -580,6 +580,8 @@ void *pfather_interact(void *dummy){
     /* this thread function implements to client-peer interaction */
 void c_interact(void *thread_scl){
 	int err;
+    int size;
+    uint32_t *id_array;
     int retval;
     int photo_id;
     int acknowledge;
@@ -673,7 +675,14 @@ void c_interact(void *thread_scl){
                 keywordlist_printAllData(keywords, &keywordlock);
                 break;
             case 4:
-                /* POR IMPLEMENTAR A PROCURA DAS KEYWORDS */
+                size = search_keyword(keywords, recv_task.keyword, &id_array, &keywordlock);
+
+                send(scl, &size, sizeof(int), 0);//send size of array first
+
+                if(size != 0) //only send if there is any
+                    send(scl, id_array, sizeof(uint32_t)*size, 0);//send array 
+
+                free(id_array);
 
                 free(tmp_tasklist);
                 continue;
