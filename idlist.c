@@ -1,6 +1,6 @@
 #include "idlist.h"
 
-int IDlist_insert(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
+int IDlist_insert(id_node **hp, uint32_t id, pthread_rwlock_t *rwlock){
 	id_node *a, *p;
 	for(a = (id_node*)hp, p = *hp; p != NULL && id > p->id; a = p, p = p->next)
 		;
@@ -17,7 +17,7 @@ void IDlist_print(id_node *h, pthread_rwlock_t *rwlock){
 	id_node *p;
 	pthread_rwlock_rdlock(rwlock);
 	for(p = h; p != NULL; p = p->next)
-		printf("(%u) ", p->id);
+		printf("(%"PRIu32") ", p->id);
 	pthread_rwlock_unlock(rwlock);
 	putchar('\n');
 }
@@ -31,7 +31,7 @@ void IDlist_delete(id_node **hp, pthread_rwlock_t *rwlock){
 	*hp = NULL;
 }
 
-id_node *IDlist_match(id_node *hp, unsigned id, pthread_rwlock_t *rwlock){
+id_node *IDlist_match(id_node *hp, uint32_t id, pthread_rwlock_t *rwlock){
 	while(hp != NULL)
 		if(id > hp->id)
 			hp = hp->next;
@@ -40,7 +40,7 @@ id_node *IDlist_match(id_node *hp, unsigned id, pthread_rwlock_t *rwlock){
 	return NULL;
 }
 
-static id_node *IDlist_Specialmatch(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
+static id_node *IDlist_Specialmatch(id_node **hp, uint32_t id, pthread_rwlock_t *rwlock){
 	id_node *prev = (id_node *)hp;
 	id_node *aux = *hp;
 	for(; aux != NULL && id > aux->id; prev = aux, aux = aux->next)
@@ -50,7 +50,7 @@ static id_node *IDlist_Specialmatch(id_node **hp, unsigned id, pthread_rwlock_t 
 	return id == aux->id ? prev : NULL;
 }
 
-int IDlist_del_el(id_node **hp, unsigned id, pthread_rwlock_t *rwlock){
+int IDlist_del_el(id_node **hp, uint32_t id, pthread_rwlock_t *rwlock){
 	id_node *prev;
 	if((prev = IDlist_Specialmatch(hp, id, rwlock)) != NULL){ // REMOVE ELEMENT if true
 		if(!prev->next->next){ // List at the end or with only 1 element

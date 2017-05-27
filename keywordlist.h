@@ -28,13 +28,13 @@ typedef struct keyword{
 // RETURN NULL IF KEYWORD ALREADY IN THE LIST
 // RETURNS keyword_node * TO THE  KEYWORD INSERTED IN THE LIST
 // CAN RETURN VOID!
-keyword_node *keywordlist_insert(keyword_node **, char *, unsigned, pthread_rwlock_t *);
+keyword_node *keywordlist_insert(keyword_node **, char *, uint32_t, pthread_rwlock_t *);
 /******************************************************************************/
 // DELETE ALL keywordlist
 void keywordlist_delete(keyword_node **, pthread_rwlock_t *);
 /******************************************************************************/
 // DELETE GIVEN ID from keywordlist -> Function used in deletion of a PHOTO
-void keywordlist_remID(keyword_node *, unsigned, pthread_rwlock_t *);
+void keywordlist_remID(keyword_node *, uint32_t, pthread_rwlock_t *);
 /******************************************************************************/
 // PRINT ALL keywordlist
 void keywordlist_print(keyword_node *, pthread_rwlock_t *);
@@ -48,6 +48,6 @@ void keywordlist_printIDS_fromKey(keyword_node *h, char *, pthread_rwlock_t *rwl
 // Search for a given key
 // Return NULL if no match
 // Return node of the keyword found
-keyword_node *search_keyword(keyword_node *, char *, pthread_rwlock_t *);
+keyword_node *search_keyword(keyword_node *, char *, uint32_t **, pthread_rwlock_t *);
 
 #endif //KEYWORDLIST_INIT_H

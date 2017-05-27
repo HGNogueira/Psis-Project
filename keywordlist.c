@@ -124,9 +124,12 @@ void keywordlist_remID(keyword_node *hp, unsigned id, pthread_rwlock_t *rwlock){
 	}
 }
 
-keyword_node *search_keyword(keyword_node *keys, char *keyword, pthread_rwlock_t *rwlock){
+keyword_node *search_keyword(keyword_node *keys, char *keyword, uint32_t **id_photos, pthread_rwlock_t *rwlock){
 	keyword_node *p;
+    id_node *ids;
 	pthread_rwlock_rdlock(rwlock);
+    int arraysize = 0, i = 0;
+
 	for(p = keys; p != NULL && strcoll(keyword, p->keyword) > 0; p = p->next)
 		;
 	if(p == NULL){
@@ -134,6 +137,19 @@ keyword_node *search_keyword(keyword_node *keys, char *keyword, pthread_rwlock_t
 		return NULL;
 	}
 	else if(!strcoll(keyword, p->keyword)){
+        ids = p->ids;
+        while(ids != NULL){
+            arraysize ++;
+            ids = ids->next;
+        }
+
+        *id_photos = (uint32_t *) malloc(sizeof(uint32_t)*arraysize);
+        ids = p->ids;
+        while(ids != NULL){
+            (*id_photos)[i] = ids->id;
+            i++;
+            ids = ids->next;
+        }
 		pthread_rwlock_unlock(rwlock);
 		return p;
 	}
