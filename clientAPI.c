@@ -255,17 +255,21 @@ int gallery_search_photo(int peer_socket, char * keyword, uint32_t ** id_photos)
         update_peer_loss();
         exit(EXIT_FAILURE);
     }
+    if(size == 0){
+        return 0;
+    }
 
     *id_photos = (int *) malloc(sizeof(int)*size);
     remain_data = size;
     pointer = 0;
-    while( (remain_data > 0) && ((len = recv(peer_socket, (*id_photos + pointer), sizeof(int)*remain_data, 0)) > 0)){
-        remain_data = remain_data - len;
-        pointer = size-remain_data;
+    while( (remain_data > 0) && ((len = recv(peer_socket, &((*id_photos)[pointer]), sizeof(uint32_t)*remain_data, 0)) > 0)){
+        remain_data = remain_data - (int)((double)len)*((double)(sizeof(char))/((double)sizeof(uint32_t)));
+        pointer = size - remain_data;
     }
 
     if(remain_data != 0){
         printf("galery_search_photo: remain_data = %d  , data transfer imperfect\n", remain_data);
+        return -1;
     }
 
     return size;
