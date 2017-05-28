@@ -29,7 +29,6 @@ typedef struct task_node{
 
 /******************************************************************************/
 
-
 /****************** GLOBAL VARIABLES ******************************************/
 int s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
 pthread_mutex_t gw_mutex;      
@@ -70,7 +69,6 @@ void *get_updated(void *thread_s){
     pthread_mutex_lock(&task_mutex);
     if(tasklist == NULL){
         /* create dummy task, serves as a bridge between tasks to be seen as 
-
          * previous and after update cycle */
         current_node = (tasklist_t *) malloc(sizeof(tasklist_t));
         current_node->task.type = -3; //indicates dummy task
@@ -153,17 +151,7 @@ void *get_updated(void *thread_s){
                     free(tmp_tasklist);
                     continue;
                 }
-                /*
-                if(retval == 1){
-                    // Reconnected peer is confirmed to be back in the chain
-                    // no information lost 
-                    free(tmp_tasklist);
-                    acknowledge = 0;
-                    send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
-                    close(s);
-                    printf("I am reconnected\n");
-                    pthread_exit(NULL);
-                }*/
+
                 if(retval == 0){
                     acknowledge = 2;
                     send(s, &acknowledge, sizeof(acknowledge), 0); //end update routine
