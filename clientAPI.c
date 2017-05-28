@@ -390,7 +390,7 @@ int gallery_delete_photo(int peer_socket, uint32_t id_photo){
     /* apply for photo upload */
     send(peer_socket, (void *) &task, sizeof(task), 0);
 
-    retval = phototransfer_recv(peer_socket, file_name, -1);
+    retval = phototransfer_recv(peer_socket, file_name, 0);
     if(retval == 1)
         return 0;
     else if(retval == -1)
