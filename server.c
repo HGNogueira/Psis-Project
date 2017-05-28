@@ -31,7 +31,7 @@ typedef struct task_node{
 
 
 /****************** GLOBAL VARIABLES ******************************************/
-int run = 1, s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
+int s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
 pthread_mutex_t gw_mutex;      
 pthread_mutex_t task_mutex;
 pthread_rwlock_t photolock;
@@ -49,10 +49,6 @@ pthread_mutex_t update_mutex;
 int pson_run = 0;
 pthread_t pson_thread = 0;
 /******************************************************************************/
-
-void sigint_handler(int n){
-	run = 0;
-}
 
     /* this thread function implements the getting up to date routine
      *
@@ -256,6 +252,7 @@ void update_peer(void *thread_s){
             send(s, &termination_task, sizeof(task_t), 0);
             printf("Peer is up to date\n");
             close(s);
+            sem_post(&update_sem);
             return;
         }
 
@@ -300,9 +297,7 @@ void update_peer(void *thread_s){
                 continue;
             }
 
-            if( (err = send(s, &(update_list->task), sizeof(task_t), 0) ) == -1){
-                perror("send error");
-            }
+            send(s, &(update_list->task), sizeof(task_t), 0);
         }
 
         if(update_list->task.type == 1){
@@ -345,6 +340,7 @@ void update_peer(void *thread_s){
         if(recv(s, &acknowledge, sizeof(acknowledge), 0) <= 0){
             if(deleter_list != NULL)
                 free(deleter_list);
+            sem_post(&update_sem); //open gates for other update
             close(s);
             return;
         }
@@ -376,7 +372,7 @@ void pson_interact(void *thread_s){
     tasklist_t *auxlist = tasklist;
     pthread_mutex_unlock(&task_mutex);
 
-    while(pson_run){
+    while(pson_run){ //only one pson allowed to run at a time
         printf("New task for my son\n");
         send(s, &(auxlist->task), sizeof(task_t), 0);
 
@@ -428,7 +424,7 @@ void *pfather_interact(void *dummy){
     task_t recv_task;
     tasklist_t *tmp_tasklist;
     photolist_t *tmp_photolist;
-    int acknowledge = 1; //used to ask for previous tasks if connection has been previously broken (recon global variable);
+    int acknowledge = 1;
 
     /* demand gateway a new father peer */
     gw_msg.ID = ID;
@@ -492,36 +488,35 @@ void *pfather_interact(void *dummy){
 
     while(1){
         if( (err = recv(s, &recv_task, sizeof(recv_task), 0)) == -1){
-			perror("recv error");
+			perror("pfather_interact (recv):");
             close(s);
             pfather_interact(NULL); //go back to trying to connect with new father
 		}
 		else if(err == 0){ //peer disconnected
 			printf("Father peer disconnected from this server\n");
 			gw_msg.type = -1; //indicar à gateway que pai desconectou-se
-			gw_msg.ID = ID;
-			if( (sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr)) )==-1){
-				perror("GW contact");
-			}
+			gw_msg.ID = ID;   //identify yourself
+			sendto(s_gw, &gw_msg, sizeof(gw_msg), 0,(const struct sockaddr *) &gw_addr, sizeof(gw_addr));
 			close(s);
             pfather_interact(NULL); //go back to trying to connect with new father
 			return NULL;            //never gets here, perpetual function
 		}
         printf("New task from my father\n");
 
-        acknowledge = 1; //in case recv_task.ID=ID I know I can go to next task
-        /* only process task if this peer isn't the one responsible for it */
+        acknowledge = 1;//default value for acknowledge
         if(ID == 0){//count number of loops task is taking around the list
+            /* this counter serves as a way to artificially stop perpetual 
+             * task propagation in certain perverse cases */
             recv_task.turns++;
         }
-        if(recv_task.turns <= 2){//for certain situations of eternal propagation
-            /* process new task */
+        if(recv_task.turns <= 2){//allow one full loop propagation
+            /* process new task, pre-alloc */
             tmp_tasklist = (tasklist_t*) malloc(sizeof(tasklist_t));
             switch(recv_task.type){
                 case -1:
                     printf("Deleting photo with id=%"PRIu32"\n", recv_task.photo_id);
                     retval = photolist_delete(&photolist, recv_task.photo_id, &photolock);
-                    if(retval == -1){/*already deleted or non existant */
+                    if(retval == -1){/*already deleted or non existant*/
                         free(tmp_tasklist);
                         acknowledge = 1;
                         send(s, &acknowledge, sizeof(acknowledge), 0);
@@ -539,8 +534,6 @@ void *pfather_interact(void *dummy){
                         send(s, &acknowledge, sizeof(acknowledge), 0);
                         continue;
                     }
-
-                    /* add keyword to keyword list */
 
                     break;
                 case 1:
@@ -603,7 +596,7 @@ void *pfather_interact(void *dummy){
             tmp_tasklist->task.turns = recv_task.turns;
 
             /* insert tmp_list to head of task list */ 
-
+            /* lock task insert critical region */
             pthread_mutex_lock(&task_mutex);
             tmp_tasklist->next = NULL;
             tmp_tasklist->prev = tasklist;
@@ -768,7 +761,6 @@ void c_interact(void *thread_scl){
 void *id_socket(void *thread_s){
     int err;
     int rmt_identifier;
-    message_gw gw_msg;
     int s = (int) *( (int *) thread_s);
 
     if( (err = recv(s, &rmt_identifier, sizeof(rmt_identifier), 0)) == -1){
@@ -780,32 +772,33 @@ void *id_socket(void *thread_s){
 			return(NULL);
 	}
 
-    if( rmt_identifier == 0){ //approached by new client
-        c_interact(thread_s);
-        return NULL;
-    } else if( rmt_identifier == 1){ //peer requires updating
-        if(updated)
-            sem_post(&update_sem);
-        sem_wait(&update_sem);
-        update_peer(thread_s); //will start updating peer with the existing content
-        return NULL;
-    } else if( rmt_identifier == 2){ //peer joins the chain
-        if(pson_run != 0){
-            printf("New pson, make other pson stop thread\n");
-            pson_run = 0;
-            sem_post(&task_sem);
-            void *retval;
-            pthread_join(pson_thread, &retval);
-        }
-        pson_thread = pthread_self();
-        pson_run = 1;
+    switch(rmt_identifier){
+        case 0:
+            c_interact(thread_s); //start interacting continuously with client
+            return NULL;
+        case 1:
+            if(updated)           //only start updating once already updated
+                sem_post(&update_sem);
+            sem_wait(&update_sem);
+            update_peer(thread_s); //will start updating peer with the existing content
+            return NULL;
+        case 2:
+            if(pson_run != 0){
+                printf("New pson, make other pson stop thread\n");
+                pson_run = 0;
+                sem_post(&task_sem);
+                void *retval;
+                pthread_join(pson_thread, &retval);
+            }
+            pson_thread = pthread_self();
+            pson_run = 1;
 
-        pson_interact(thread_s);
-        return NULL;
-    }
-    if( rmt_identifier == 3){ //gateway is just checking if server is alive
-        close(s);
-        return NULL;
+            pson_interact(thread_s);
+            return NULL;
+        case 3:
+            close(s);
+            free(thread_s);
+            return NULL;
     }
 }
 
@@ -820,21 +813,7 @@ int main(){
 	int port;
     pthread_t thread_id;
     int *sthread;
-	struct sigaction act_INT, act_SOCK;
 	socklen_t addr_len;
-
-/****** SIGNAL MANAGEMENT ******/
-	act_INT.sa_handler = sigint_handler;
-	sigemptyset(&act_INT.sa_mask);
-	act_INT.sa_flags=0;
-	sigaction(SIGINT, &act_INT, NULL);
-
-	act_SOCK.sa_handler = sigint_handler;
-	sigemptyset(&act_SOCK.sa_mask);
-	act_SOCK.sa_flags=0;
-	sigaction(SIGPIPE, &act_SOCK, NULL); //Quando cliente fecha scl, podemos controlar comportamento do servidor
-/****** SIGNAL MANAGEMENT ******/
-
 
 /****** PREPARE SOCK_STREAM ******/
 	if(  (s = socket(AF_INET, SOCK_STREAM, 0))==-1 ){
@@ -909,18 +888,16 @@ int main(){
     pthread_mutex_init(&update_mutex, NULL);
     /****** READY TO RECEIVE MULTIPLE CONNECTIONS ******/
 	rmt_addr_len = sizeof(struct sockaddr_in);
-	while(run){
+	while(1){
         sthread = (int*) malloc(sizeof(int));
 		if( (*sthread = accept(s, (struct sockaddr *) &rmt_addr, &rmt_addr_len)) != -1){
-
             //initiate thread to identify and proceed with interaction
 			if( pthread_create(&thread_id, NULL, id_socket,sthread) != 0)
 				printf("Error creating a new thread\n");
-
 		} else{
-			perror("accept");
-			//exit(EXIT_FAILURE):  //não sair para não interromper restantes threads
-
+			perror("Couldn't accept new connection...");
+            close(*sthread);
+            free(sthread);
 		}
 	}
 
