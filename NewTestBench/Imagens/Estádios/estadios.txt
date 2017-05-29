@@ -1,0 +1,11 @@
+estadio_chelsea.jpg             estadio_do_boavista.jpg
+estadio_de_leiria.jpg           estadio_do_borussia_dortmund.jpg
+estadio_de_lyon.jpeg            estadio_do_juventus.png
+estadio_de_roma.jpg             estadio_do_liverpool.jpg
+estadio_do_ac_milao.jpg         estadio_do_machester_united.jpg
+estadio_do_arsenal.jpg          estadio_do_monaco.jpg
+estadio_do_atletico_madrid.jpg  estadio_do_porto.png
+estadio_do_barcelona.jpg        estadio_do_psg.jpg
+estadio_do_bayern_munique.jpg   estadio_do_real_madrid.jpg
+estadio_do_benfica.jpg          estadio_do_sporting.jpg
+

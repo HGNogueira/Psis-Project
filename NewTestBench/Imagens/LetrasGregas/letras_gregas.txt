@@ -1,0 +1,4 @@
+alpha.jpg   dzeta.png    gama.png    mu.png     phi.svg  rho.png    upsilon.svg
+beta.png    epsilon.png  iota.png    ni.png     pi.png   tau.png    xi.png
+delta.jpeg  eta.png      lambda.png  omega.jpg  psi.png  theta.png
+

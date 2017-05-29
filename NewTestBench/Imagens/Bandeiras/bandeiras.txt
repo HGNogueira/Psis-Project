@@ -1,0 +1,6 @@
+alemanha.png   canada.png           eua.jpg       mexico.png
+angola.png     coreia_do_norte.png  filandia.png  portugal.png
+australia.jpg  coreia_do_sul.png    franca.jpg    reino_unido.png
+brasil.png     costa_do_marfim.png  irlanda.jpg   republica_checa.png
+camaroes.png   espanha.png          japao.jpg     suecia.png
+

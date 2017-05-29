@@ -1,0 +1,8 @@
+big_ben.jpeg               mosteiro_da_batalha.jpg   santiago_de_compostela.jpg
+catedra_de_colonia.jpg     muralha_da_china.jpeg     stonehenge.jpg
+coliseu_de_roma.jpg        notre_dame.jpg            taj_mahal.jpg
+domo_de_milao.jpg          opera_de_sidney.png       torre_de_pisa.jpg
+estatuda_da_liberdade.png  Palacio_de_belvedere.jpg  torre_eiffel.jpg
+jeronimos.jpeg             palacio_de_versalhes.jpg  vaticano.jpg
+kremlin.jpg                sagrada_familia.jpg
+
