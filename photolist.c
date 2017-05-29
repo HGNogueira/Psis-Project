@@ -37,7 +37,7 @@ int photolist_insert(photolist_t **photos, uint32_t photo_id, char *photo_name, 
         return 0;
     }
     searchnode = *photos;
-    if(searchnode->photo_id > photo_id){//insert in previous
+    if(searchnode->photo_id > photo_id){//if new photo is to be inserted at start
         auxphoto->prev = searchnode->prev;
         auxphoto->next = searchnode;
         searchnode->prev = auxphoto;
