@@ -302,6 +302,7 @@ void update_peer(void *thread_s){
                     auxlist = update_list;
                     update_list = update_list->prev;
                     free(auxlist);
+                    auxlist = NULL;
                     stop = 1;
                     break;
                 }
@@ -504,7 +505,7 @@ void *pfather_interact(void *dummy){
                 case -1:
                     printf("Deleting photo with id=%"PRIu32"\n", recv_task.photo_id);
                     retval = photolist_delete(&photolist, recv_task.photo_id, &photolock);
-                    if(retval == -1){/*already deleted or non existant*/
+                    if(retval <= 0){/*already deleted or non existant*/
                         free(tmp_tasklist);
                         acknowledge = 1;
                         send(s, &acknowledge, sizeof(acknowledge), 0);
