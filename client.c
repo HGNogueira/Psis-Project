@@ -55,7 +55,7 @@ int main(){
         switch(task_type){
             case -1:
                 printf("You want to delete a photo, whats the ID?\n");
-                scanf("%d", &photo_id);
+                scanf("%u", &photo_id);
                 gallery_delete_photo(s, photo_id);
 
                 continue;
