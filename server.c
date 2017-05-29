@@ -31,7 +31,7 @@ typedef struct task_node{
 
 /****************** GLOBAL VARIABLES ******************************************/
 int s_gw; //s_gw socket que comunica com gateway (partilhada entre threads)
-pthread_mutex_t gw_mutex;      
+pthread_mutex_t gw_mutex;
 pthread_mutex_t task_mutex;
 pthread_rwlock_t photolock;
 pthread_rwlock_t keywordlock;
@@ -68,7 +68,7 @@ void *get_updated(void *thread_s){
 
     pthread_mutex_lock(&task_mutex);
     if(tasklist == NULL){
-        /* create dummy task, serves as a bridge between tasks to be seen as 
+        /* create dummy task, serves as a bridge between tasks to be seen as
          * previous and after update cycle */
         current_node = (tasklist_t *) malloc(sizeof(tasklist_t));
         current_node->task.type = -3; //indicates dummy task
@@ -98,7 +98,7 @@ void *get_updated(void *thread_s){
                 printf("Updating process has reached its end, I am up to date\n");
                 updated = 1;
                 close(s);
-                
+
                 /* go on and fill keywordlists */
                 while(keytasks != NULL){
                     if(keywordlist_insert(&keywords, keytasks->task.keyword, keytasks->task.photo_id, &keywordlock, &photolist, &photolock) == NULL){
@@ -125,6 +125,7 @@ void *get_updated(void *thread_s){
                 else{
                     free(tmp_tasklist);
                     acknowledge = 1;
+                    printf("No photo to delete %"PRIu32"\n", recv_task.photo_id);
                     send(s, &acknowledge, sizeof(acknowledge), 0);
                     continue;
                 }
@@ -147,7 +148,7 @@ void *get_updated(void *thread_s){
                 if(retval == 1){
                     acknowledge = 1;
                     send(s, &acknowledge, sizeof(acknowledge), 0);
-                    send(s, &acknowledge, sizeof(acknowledge), 0); //send acknowledge twice 
+                    send(s, &acknowledge, sizeof(acknowledge), 0); //send acknowledge twice
                     free(tmp_tasklist);
                     continue;
                 }
@@ -493,7 +494,7 @@ void *pfather_interact(void *dummy){
 
         acknowledge = 1;//default value for acknowledge
         if(ID == 0){//count number of loops task is taking around the list
-            /* this counter serves as a way to artificially stop perpetual 
+            /* this counter serves as a way to artificially stop perpetual
              * task propagation in certain perverse cases */
             recv_task.turns++;
         }
@@ -504,7 +505,7 @@ void *pfather_interact(void *dummy){
                 case -1:
                     printf("Deleting photo with id=%"PRIu32"\n", recv_task.photo_id);
                     retval = photolist_delete(&photolist, recv_task.photo_id, &photolock);
-                    if(retval == -1){/*already deleted or non existant*/
+                    if(retval == 0){/*already deleted or non existant*/
                         free(tmp_tasklist);
                         acknowledge = 1;
                         send(s, &acknowledge, sizeof(acknowledge), 0);
@@ -583,14 +584,14 @@ void *pfather_interact(void *dummy){
             tmp_tasklist->task.photo_size;
             tmp_tasklist->task.turns = recv_task.turns;
 
-            /* insert tmp_list to head of task list */ 
+            /* insert tmp_list to head of task list */
             /* lock task insert critical region */
             pthread_mutex_lock(&task_mutex);
             tmp_tasklist->next = NULL;
             tmp_tasklist->prev = tasklist;
             if(tasklist!=NULL){
                 tasklist->next = tmp_tasklist;
-            } 
+            }
 
             tasklist = tmp_tasklist;
             sem_post(&task_sem);
@@ -654,7 +655,7 @@ void c_interact(void *thread_scl){
                 keywordlist_insert(&keywords, recv_task.keyword, recv_task.photo_id, &keywordlock, &photolist, &photolock);
                 acknowledge = 1; //acknowledge back to the client
                 send(scl, &acknowledge, sizeof(int), 0);
-                
+
                 /* add keyword to keyword list */
 
                 break; //add task to tasklist
@@ -703,7 +704,7 @@ void c_interact(void *thread_scl){
                 send(scl, &size, sizeof(int), 0);//send size of array first
 
                 if(size != 0) //only send if there is any
-                    send(scl, id_array, sizeof(uint32_t)*size, 0);//send array 
+                    send(scl, id_array, sizeof(uint32_t)*size, 0);//send array
 
                 free(id_array);
 
@@ -737,7 +738,7 @@ void c_interact(void *thread_scl){
         tmp_tasklist->prev = tasklist;
         if(tasklist!=NULL){
             tasklist->next = tmp_tasklist;
-        } 
+        }
         tasklist = tmp_tasklist;
         sem_post(&task_sem);
         pthread_mutex_unlock(&task_mutex);
@@ -863,7 +864,7 @@ int main(){
     pthread_mutex_init(&gw_mutex, NULL);
     sem_init(&task_sem, 0, 0); //initialize semaphore with value 0
     //initialize photolist
-    photolist = photolist_init(); 
+    photolist = photolist_init();
     keywords = KEYWORDLIST_INIT();
     pthread_rwlock_init(&photolock, NULL);
     pthread_rwlock_init(&keywordlock, NULL);

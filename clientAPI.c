@@ -309,7 +309,7 @@ int gallery_delete_photo(int peer_socket, uint32_t id_photo){
         exit(EXIT_FAILURE);
     }
     if(acknowledge == 1){
-        printf("Successfully added the new keyword\n");
+        printf("Successfully deleted photo\n");
         return 1;
     }
     if(acknowledge == 0){
