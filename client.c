@@ -34,7 +34,7 @@ int main(){
     char photo_name[50];
     char keyword[50];
     char *dyn_name;
-    int photo_id;
+    uint32_t photo_id;
 		
 	/****** CONTACT GATEWAY ******/
     port_s = htons(GATE_PORT);
