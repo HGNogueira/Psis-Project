@@ -126,15 +126,10 @@ void keywordlist_remID(keyword_node *hp, uint32_t id, pthread_rwlock_t *rwlock){
 		if(aux != NULL && id == aux->id){
 			pthread_rwlock_unlock(rwlock);
 			pthread_rwlock_wrlock(rwlock);
-<<<<<<< HEAD
 			if(read_prev != prev || read_aux != aux){ // TEST IF ADDRESSES ARE THE SAME, IF NOT TRAVERSE AGAIN
 				pthread_rwlock_unlock(rwlock);
 				keywordlist_remID(p, id, rwlock);
 			}
-=======
-			if(read_prev != prev || read_aux != aux) // TEST IF ADDRESSES ARE THE SAME, IF NOT TRAVERSE AGAIN
-				keywordlist_remID(p, id, rwlock);
->>>>>>> 1b1a4e52703d62d86b7fcf3aeae2d99577ad1101
 			if(!prev->next->next){ // List at the end or with only 1 element
 				id_node *aux = prev->next;
 				prev->next = NULL;
