@@ -235,11 +235,6 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
                 (searchnode->next)->prev = searchnode->prev;
             }
 
-            if(searchnode->prev != NULL){
-                (searchnode->prev)->next = searchnode->next;
-
-            }
-
             strcat(filename, searchnode->photo_name);
             if(unlink(filename) == -1){
                 perror("photolist_delete (unlink)");
