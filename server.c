@@ -56,11 +56,7 @@ void *get_updated(void *thread_s){
 	int err;
     int acknowledge = 1;
     int retval;
-    int photo_id;
     task_t recv_task;
-    message_gw gw_msg;
-    socklen_t addr_len;
-    photolist_t *tmp_photolist;
     tasklist_t *tmp_tasklist, *current_node;
     tasklist_t *keytasks = NULL;
     int s = (int) *((int *) thread_s);
@@ -363,7 +359,6 @@ void update_peer(void *thread_s){
     /* this thread function implements normal son-peer interaction */
     /* it propagates the last task to its son */
 void pson_interact(void *thread_s){
-    int err;
     int acknowledge; //indicates if son peer wants next or previous item on list
     int s = (int) *((int*) thread_s);
     free(thread_s);
@@ -425,7 +420,6 @@ void *pfather_interact(void *dummy){
     struct sockaddr_in peer_addr;
     task_t recv_task;
     tasklist_t *tmp_tasklist;
-    photolist_t *tmp_photolist;
     int acknowledge = 1;
 
     /* demand gateway a new father peer */
@@ -594,7 +588,6 @@ void *pfather_interact(void *dummy){
             tmp_tasklist->task.type = recv_task.type;
             tmp_tasklist->task.ID = recv_task.ID;
             tmp_tasklist->task.photo_id = recv_task.photo_id;
-            tmp_tasklist->task.photo_size;
             tmp_tasklist->task.turns = recv_task.turns;
 
             /* insert tmp_list to head of task list */
@@ -626,7 +619,6 @@ void c_interact(void *thread_scl){
     message_gw gw_msg;
     socklen_t addr_len;
     tasklist_t * tmp_tasklist;
-    photolist_t *tmp_photolist;
 	int scl = (int) *((int *) thread_scl);
     free(thread_scl);
 
@@ -807,7 +799,7 @@ void *id_socket(void *thread_s){
 }
 
 int main(){
-	int s, srmt, err, aux_s;
+	int s, err;
 	FILE *f;
 	struct sockaddr_in srv_addr;
 	struct sockaddr_in rmt_addr;
