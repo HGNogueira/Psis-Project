@@ -767,9 +767,11 @@ void *id_socket(void *thread_s){
 
     if( (err = recv(s, &rmt_identifier, sizeof(rmt_identifier), 0)) == -1){
 			perror("id_socket: recv error");
+            free(thread_s);
 			pthread_exit(NULL);
     } else if(err == 0){ //client disconnected
 			printf("Unidentified remote connection disconnected from this peer\n");
+            free(thread_s);
 			close(s);
 			return(NULL);
 	}
