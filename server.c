@@ -187,9 +187,19 @@ void *get_updated(void *thread_s){
         tmp_tasklist->task.photo_size = recv_task.photo_size;
 
         pthread_mutex_lock(&task_mutex);
+        /* since the peer can simultaneously update and get updated, there is a
+         * chance that current_node has been deleted in the meantime by update
+         * routine. We just have to recalculate current_node position if so */
+        if(current_node == NULL){
+            current_node = tasklist;
+            while(current_node->prev != NULL){
+                current_node = current_node->prev;
+            }
+        }
         tmp_tasklist->next = current_node;
         tmp_tasklist->prev = current_node->prev;
         current_node->prev = tmp_tasklist;
+
         current_node = tmp_tasklist;
         pthread_mutex_unlock(&task_mutex);
 
@@ -233,6 +243,7 @@ void update_peer(void *thread_s){
                 if(deleter_list[i]->prev != NULL)
                     (deleter_list[i]->prev)->next = deleter_list[i]->next;
                 free(deleter_list[i]);
+                deleter_list[i] = NULL;
                 pthread_mutex_unlock(&task_mutex);
             }
             /* free deleter_list array memory */
@@ -277,6 +288,7 @@ void update_peer(void *thread_s){
                     pthread_mutex_unlock(&task_mutex);
 
                     free(auxlist);
+                    auxlist = NULL;
                     stop = 1;
                     break;
                 }
