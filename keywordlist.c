@@ -6,6 +6,7 @@ keyword_node *keywordlist_insert(keyword_node **keys, char *keyword, uint32_t id
 	pthread_rwlock_rdlock(rwlock);
 	for(p = *keys; p != NULL && strcoll(keyword, p->keyword) > 0; a = p, p = p->next)
 		;
+	keyword_node *read_a = a, *read_p = p; // Before leaving read, store adresses
 	if(p != NULL && !strcoll(keyword, p->keyword)){ // keyword found in list
 		id_node *aID, *pID;
 		for(aID = (id_node*)&p->ids, pID = p->ids; pID != NULL && id > pID->id; aID = pID, pID = pID->next)
@@ -14,11 +15,18 @@ keyword_node *keywordlist_insert(keyword_node **keys, char *keyword, uint32_t id
 			pthread_rwlock_unlock(rwlock);
 			return NULL;
 		}
+		id_node *read_aID = aID, *read_pID = pID; // Before leaving read, store adresses
 		pthread_rwlock_unlock(rwlock);
+
 		id_node *n = malloc(sizeof *n);
 		n->id = id;
+
 		pthread_rwlock_wrlock(rwlock);
-        if(photolist_search(photos, id, photolock) != NULL){//check if id exists
+		if(read_aID != aID || read_pID != pID){ // Something changed, traverse list again
+				pthread_rwlock_unlock(rwlock);
+				return keywordlist_insert(&p, keyword, id, rwlock, photos, photolock);
+		}
+		if(photolist_search(photos, id, photolock) != NULL){//check if id exists
             n->next = pID; // Assign new element to next node
             aID->next = n; // Connect new element to previous node
             pthread_rwlock_unlock(rwlock);
@@ -30,7 +38,13 @@ keyword_node *keywordlist_insert(keyword_node **keys, char *keyword, uint32_t id
 	}
 	pthread_rwlock_unlock(rwlock);
 
+	// IF KEYWORD NOT FOUND IN LIST, INSERT KEYWORD AND ID
+
 	pthread_rwlock_wrlock(rwlock);
+	if(read_a != a || read_p != p){ // Something changed, traverse list again
+			pthread_rwlock_unlock(rwlock);
+			return keywordlist_insert(keys, keyword, id, rwlock, photos, photolock);
+	}
     keyword_node *n = malloc(sizeof *n);
     n->keyword = strcpy(malloc(strlen(keyword) + 1), keyword);
     n->next = p;
@@ -108,9 +122,14 @@ void keywordlist_remID(keyword_node *hp, uint32_t id, pthread_rwlock_t *rwlock){
 		id_node *aux = p->ids;
 		for(; aux != NULL && id > aux->id; prev = aux, aux = aux->next)
 			;
+		id_node *read_prev = prev, *read_aux = aux; // Before leaving read, store adresses
 		if(aux != NULL && id == aux->id){
 			pthread_rwlock_unlock(rwlock);
 			pthread_rwlock_wrlock(rwlock);
+			if(read_prev != prev || read_aux != aux){ // TEST IF ADDRESSES ARE THE SAME, IF NOT TRAVERSE AGAIN
+				pthread_rwlock_unlock(rwlock);
+				keywordlist_remID(p, id, rwlock);
+			}
 			if(!prev->next->next){ // List at the end or with only 1 element
 				id_node *aux = prev->next;
 				prev->next = NULL;
@@ -128,7 +147,7 @@ void keywordlist_remID(keyword_node *hp, uint32_t id, pthread_rwlock_t *rwlock){
 			}
 			pthread_rwlock_unlock(rwlock);
 		}
-		else
+		else // IF ID NOT FOUND IN KEYWORD, GO TO NEXT KEYWORD
 			pthread_rwlock_unlock(rwlock);
 		pthread_rwlock_rdlock(rwlock);
 		p = p->next;
