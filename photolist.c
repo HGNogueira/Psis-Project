@@ -214,7 +214,7 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
     char filename[60];
 
     filename[0] = '\0';
-    sprintf(filename, "./%" PRIu32, photo_id);
+    sprintf(filename, "./%" PRIu32"", photo_id);
 
     pthread_rwlock_rdlock(rwlock);
     if(*photos == NULL){
@@ -233,6 +233,11 @@ int photolist_delete(photolist_t **photos, uint32_t photo_id, pthread_rwlock_t *
 
             if(searchnode->next != NULL){
                 (searchnode->next)->prev = searchnode->prev;
+            }
+
+            if(searchnode->prev != NULL){
+                (searchnode->prev)->next = searchnode->next;
+
             }
 
             strcat(filename, searchnode->photo_name);
