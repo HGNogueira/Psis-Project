@@ -3,28 +3,28 @@ LINKFLAGS = gcc -g -o
 EXTRAFLAGS = -lpthread
 
 #FAZER make PARA COMPILAR e LINKAR##############################
-All: server gateway client
+All: peer gateway client
 ################################################################################
-gateway: gateway.o serverlist.o
+gateway: gateway.o peerlist.o
 	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
 ################################################################################
-server: server.o photolist.o phototransfer.o keywordlist.o idlist.o
-	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
-
-server.o: server.c messages.h clientAPI.h phototransfer.h
-	$(COMPFLAGS) $@ $<
-################################################################################
-client: client.o clientAPI.o phototransfer.o
+peer: peer.o photolist.o phototransfer.o keywordlist.o idlist.o
 	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
 
-client.o: client.c messages.h clientAPI.h phototransfer.h
+peer.o: peer.c messages.h API.h phototransfer.h
 	$(COMPFLAGS) $@ $<
 ################################################################################
-clientAPI.o: clientAPI.c clientAPI.h
+client: client.o library.o phototransfer.o
+	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
+
+client.o: client.c messages.h API.h phototransfer.h
+	$(COMPFLAGS) $@ $<
+################################################################################
+library.o: library.c API.h
 	$(COMPFLAGS) $@ $<
 photolist.o: photolist.c photolist.h
 	$(COMPFLAGS) $@ $<
-serverlist.o: serverlist.c serverlist.h
+peerlist.o: peerlist.c peerlist.h
 	$(COMPFLAGS) $@ $<
 phototransfer.o: phototransfer.c phototransfer.h
 	$(COMPFLAGS) $@ $<
@@ -37,4 +37,4 @@ test: keywordlist.o idlist.o
 	$(LINKFLAGS) $@ $^ $(EXTRAFLAGS)
 ################################################################################
 clean:
-	rm -f gateway server client *.o
+	rm -f gateway peer client *.o
