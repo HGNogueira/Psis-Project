@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #include "phototransfer.h"
-#include "clientAPI.h" /* include header with function prototypes */
+#include "API.h" /* include header with function prototypes */
 #include "messages.h"  /* message description headers */
 
 struct sockaddr_in peer_addr, gw_addr;
