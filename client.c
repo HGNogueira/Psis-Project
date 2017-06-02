@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 #include "messages.h"
-#include "clientAPI.h"
+#include "API.h"
 #include "phototransfer.h"
 
 #define GATE_PORT 3000

@@ -1,23 +1,23 @@
-#include "serverlist.h"
+#include "peerlist.h"
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/types.h>
 #include <stdio.h>
 
-/* Implemented functions for serverlist looped linked list */
+/* Implemented functions for peerlist looped linked list */
 
 /* inicialização da lista de servidores */
-serverlist *init_server(){
+peerlist *init_server(){
 	return NULL;
 }
 
     /* return 1 if its the first server */
-int add_server(serverlist **peers, int *n_peers, char *address, int port, int ID, pthread_rwlock_t *rwlock){
-	serverlist *newnode, *auxnode;
+int add_server(peerlist **peers, int *n_peers, char *address, int port, int ID, pthread_rwlock_t *rwlock){
+	peerlist *newnode, *auxnode;
     int retval = 0;
 
-	newnode = (serverlist *) malloc(sizeof(serverlist));
+	newnode = (peerlist *) malloc(sizeof(peerlist));
 	strcpy(newnode->address, address);
 	newnode->port = port;
 	newnode->ID = ID;
@@ -45,7 +45,7 @@ int add_server(serverlist **peers, int *n_peers, char *address, int port, int ID
 }
 
 /* função que escolhe servidor com menos carga */
-serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock){
+peerlist *pick_server(peerlist **peers, pthread_rwlock_t *rwlock){
 	struct node *s1,*s2;
 	int clients;
     int startID;
@@ -72,9 +72,9 @@ serverlist *pick_server(serverlist **peers, pthread_rwlock_t *rwlock){
 	return s2;
 }
 
-/* searches serverlist and deletes node, if not found 0 is returned, if serverlist empty -1
+/* searches peerlist and deletes node, if not found 0 is returned, if peerlist empty -1
  * is returned, if success 1 is returned */
-int delete_peer(serverlist **peers, int *n_peers, char *address, int port, pthread_rwlock_t *rwlock){
+int delete_peer(peerlist **peers, int *n_peers, char *address, int port, pthread_rwlock_t *rwlock){
 	struct node *s1, *auxnode;
     int startID;
     
@@ -120,7 +120,7 @@ int delete_peer(serverlist **peers, int *n_peers, char *address, int port, pthre
 	return 0;
 }
 
-serverlist *search_server(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
+peerlist *search_server(peerlist **peers, int ID, pthread_rwlock_t *rwlock){
 	struct node *s;
     int startID;
     
@@ -146,7 +146,7 @@ serverlist *search_server(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
 }
 
 /* to be implemented ####.... */
-serverlist *search_father(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
+peerlist *search_father(peerlist **peers, int ID, pthread_rwlock_t *rwlock){
 	struct node *s;
     int startID;
     
@@ -172,7 +172,7 @@ serverlist *search_father(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
 	return NULL;
 }
 
-int searchlist_crown_head(serverlist **peers, int ID, pthread_rwlock_t *rwlock){
+int searchlist_crown_head(peerlist **peers, int ID, pthread_rwlock_t *rwlock){
     struct node *s;
     int startID;
     

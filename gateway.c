@@ -35,7 +35,7 @@
 #include <pthread.h>
 
 #include "messages.h"
-#include "serverlist.h"
+#include "peerlist.h"
 
 /**
 * \def CLIENT_SIDE_PORT
@@ -53,7 +53,7 @@
 /****** GLOBAL VARIABLES ********/
 int run = 1;
 int sc, sp; // client side and server side socket descriptors
-serverlist *servers;  // linked list of servers
+peerlist *servers;  // linked list of servers
 int ID = 0; /*server ID counter */
 uint32_t photo_id = 1; /*photos id counter */
 int n_peers = 0;   /* number of total peers */
@@ -125,7 +125,7 @@ int check_and_update_peer(message_gw *gw_msg, pthread_rwlock_t *rwlock){
 void *c_interact(void *rwlock){
     socklen_t addr_len;
     struct sockaddr_in rmt_addr;
-    serverlist *tmp_node;
+    peerlist *tmp_node;
     message_gw gw_msg;
 
     while(1){
@@ -168,7 +168,7 @@ void *p_interact(void *rwlock){
     socklen_t addr_len;
     int retval;
     struct sockaddr_in rmt_addr;
-    serverlist *tmp_node;
+    peerlist *tmp_node;
     message_gw gw_msg;
 
     while(1){
